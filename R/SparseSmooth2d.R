@@ -73,7 +73,9 @@ sparseSmooth2d <- function(values, weights, smooth_param = c(10, 10), weight_thr
   ## to eliminate the rest of the elements between the row neighbors
   ## We do this once for the basic matrix...
   ## ... transpose to turn into by-row order
-  tmp <- as.vector( t(D2_along_row))
+  ## FIXME: why do I have to invoke the transpose-method for sparse matrices
+  ## explicitly if the package actually depends on Matrix?!
+  tmp <- as.vector( Matrix::t(D2_along_row) )
   ## ... replace each element by a vector consisting of itself and the
   ##     (nr-1) zeros, forming a complete column of the original matrix
   tmp_infl <- unlist( lapply( tmp, function(x) c(x, rep(0, nr-1))) )
@@ -99,7 +101,8 @@ sparseSmooth2d <- function(values, weights, smooth_param = c(10, 10), weight_thr
   ## And this is the full matrix of weighted, squared and mixed second order
   ## difference operators
   ## This is a nr*nc x nr*nc matrix, so sparseness is not too bad
-  LtL <- t(L) %*% L
+  ## FIXME: why explicit method call necessary?!
+  LtL <- Matrix::t(L) %*% L
 
   ## Now we start with the actual data; we unwrap & stack the value- and
   ## weight matrices; so these are now vectors of length nr*nc
