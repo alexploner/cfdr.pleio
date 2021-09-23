@@ -2,55 +2,229 @@
 % Please edit documentation in R/cfdr_pleio.R
 \name{cfdr_pleio}
 \alias{cfdr_pleio}
-\title{A class for calculating conditional & conjunctional fdr for pleiotropy analysis}
+\title{Calculate the conditional fdr}
+\value{
+The updated \code{cfdr_pleio}-onject, invisibly.
+Breaks for trait1, but not trait2, are shifted half a bin-width downward;
+comment in original function ind_look states "shift half-bin to imitate old codes"
+Average the sums
+}
 \description{
 A class that captures all data for calculating the conditional
 and conjuncational fdr for pleiotropy analysis, and manages the necessary
 analysis flow
 }
+\details{
+A class for calculating conditional & conjunctional fdr for pleiotropy analysis
+}
 \examples{
 cfdr_pleio$new()
+}
+\seealso{
+\code{\link{refdat_location}}
+Filter for ambiguous SNPs, based on reference allele information, if required
+(not default, but specified for Edu/Swb example)
+
+So ambiguous is when the SNP variants are the naturally complementary pairs,
+cos in this case, a simple strand-mixup could lead to switch that is not
+really a SNP (iow, exclude SNPs that are essentially just a flip between
+strands)... I think, though this may be more complicated
+https://www.snpedia.com/index.php/Ambiguous_flip
+
+Anyhoozle, this is actually the definition employed for the pre-cooked
+reference data, the confusing python code not withstanding; see
+read_matlab.R for details and verification, but this is exactly the
+definition in used in
+https://precimed.s3-eu-west-1.amazonaws.com/pleiofdr/ref9545380_1kgPhase3eur_LDr2p1.mat
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
-\item{\code{trait1_data}}{Genetic data for the first trait}
+\item{\code{trait_data}}{Genetic data for both traits, aligned with each other and
+the reference data}
 
-\item{\code{trait2_data}}{Genetic data for the second trait}
+\item{\code{trait_names}}{Character vector of length two, the names of the traits}
 
-\item{\code{traitnames}}{Character vector of length two, the names of the traits}
+\item{\code{trait_columns}}{Named character vector of length three, listing the
+names of the required columns in the input trait data. These are
+colums are:\preformatted{   * `id`: unique variant identifiers; default `"SNP"` (character)
+   * `beta`: variant-specific effect sizes (log-odds ratios or similar);
+             default `"BETA"` (numeric)
+   * `pval`: p-value corresponding to `beta`; default `"PVAL"` (numeric).
+}}
+
+\item{\code{refdat_orig}}{An object of class \code{refdata_location} that points at the
+original (uncompressed) genetic reference data}
+
+\item{\code{refdat_local}}{An object of class \code{refdata_location} that points at the
+pre-processed (compressed) genetic reference data used for the current
+analysis}
+
+\item{\code{ref_columns}}{Named character vector of length seven, listing the
+names of the required columns in the input trait data. These columns
+are:\preformatted{   * `id`: unique variant identifier; default `"SNP"` (character)
+   * `chr`: variant chromosome number; default `"CHR"` (numeric)
+   * `bp`: variant base pair position; default "`BP`" (numeric)
+   * `a1`, `a2`:  major and minor alleles at position; default `"A1"`
+                  and `"A2"` (character)
+   * `maf`: minor allele frequency; default `"MAF"` (numeric)
+   * `interg`: flag indicating whether the variant is intergenic (1)
+               or not (0); default `"INTERGENIC"` (numeric 0/1)
+}}
+
+\item{\code{index}}{A logical matrix of size (number of variants) x (number of iterations)
+This is the container that holds the multiple randomly pruned subsets
+of the full data from which the cfdr is estimated. Default \code{NULL}
+(i.e. uninitialized)}
+
+\item{\code{n_iter}}{Numerical; indicates the number of random prunings to be used
+for estimating the cFDR. Default \code{NULL}(i.e. uninitialized)}
+
+\item{\code{seed}}{Numerical; suitable seed for setting the random number generator
+before starting random pruning of data. Default \code{NULL}(i.e. uninitialized)}
 }
 \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
 \itemize{
-\item \href{#method-new}{\code{cfdr_pleio$new()}}
+\item \href{#method-init_data}{\code{cfdr_pleio$init_data()}}
+\item \href{#method-initialize_pruning_index}{\code{cfdr_pleio$initialize_pruning_index()}}
+\item \href{#method-calculate_fdr}{\code{cfdr_pleio$calculate_fdr()}}
 \item \href{#method-clone}{\code{cfdr_pleio$clone()}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-new"></a>}}
-\if{latex}{\out{\hypertarget{method-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize an empty
+\if{html}{\out{<a id="method-init_data"></a>}}
+\if{latex}{\out{\hypertarget{method-init_data}{}}}
+\subsection{Method \code{init_data()}}{
+Initialize an empty \code{cfdr_pleio} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$new(trait1 = NA, trait2 = NA, traitnames)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$init_data(
+  trait1,
+  trait2,
+  trait_names,
+  trait_columns,
+  refdat,
+  ref_columns,
+  local_refdat_path = "./local_refdat",
+  correct_GC = TRUE,
+  correct_SO = FALSE,
+  exclusion_range,
+  filter_maf_min = 0.005,
+  filter_ambiguous = FALSE,
+  filter_fisher = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{trait1}}{Genetic data for the first trait}
+\item{\code{trait1}}{data.table object, genetic data for the first trait}
 
-\item{\code{trait2}}{Genetic data for the second trait}
+\item{\code{trait2}}{data.table, genetic data for the second trait}
 
-\item{\code{traitnames}}{Character vector of length two, the names of the traits}
+\item{\code{trait_names}}{Character vector of length two, the names of the traits}
+
+\item{\code{trait_columns}}{Character vector overriding the default required
+column names in the trait data; see field description.}
+
+\item{\code{refdat}}{An object of class \code{refdata_location} that contains
+the directory and file names with the genetic reference data}
+
+\item{\code{ref_columns}}{Character vector overriding the default required
+column names in the reference data \code{refdat}; see field description.}
+
+\item{\code{local_refdat_path}}{Character, the directory for storing the reduced
+and compressed genetic reference data for the current analysis. This
+directory will be created if it does not exist. If it exists and
+is not empty, the content will be overwritten. FIXME: some kind of
+failsafe?}
+
+\item{\code{correct_GC}}{logical; correct trait p-values for genetic correlation?
+Default \code{TRUE}}
+
+\item{\code{correct_SO}}{logical; correct trait data for sample overlap? Default
+\code{FALSE}, currently not implemented, stops with error if \code{TRUE}}
+
+\item{\code{exclusion_range}}{data.frame with three columns, specifying genomic
+regions to be excluded from the analysis FIXME: detailed description}
+
+\item{\code{filter_maf_min}}{numeric, minimum require minor allele frequency;
+variants below this threshold are exluded from the analysis. Default
+0.005, set to \code{NA} to turn off frequency filtering}
+
+\item{\code{filter_ambiguous}}{logical, exlude ambiguous variants? Default \code{FALSE};
+currently not implemented, stops with error if \code{TRUE}}
+
+\item{\code{filter_fisher}}{logical; perform Fisher filtering? Default \code{FALSE};
+currently not implemented, stops with error if \code{TRUE}}
 }
 \if{html}{\out{</div>}}
 }
-\subsection{Returns}{
-Nothing special
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-initialize_pruning_index"></a>}}
+\if{latex}{\out{\hypertarget{method-initialize_pruning_index}{}}}
+\subsection{Method \code{initialize_pruning_index()}}{
+Set up the randomly pruned index matrix for cFDR estimation
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$initialize_pruning_index(n_iter, seed, force = FALSE)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{n_iter}}{Number of random prunings}
+
+\item{\code{seed}}{Integer; random seed for pruning; if missing, the function will
+randomly generate and store a seed to make the analysis reproducible}
+
+\item{\code{force}}{Logical; indicate whether to override an existing index.
+Default \code{FALSE}, which stops with a warning if the index has been
+defined.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-calculate_fdr"></a>}}
+\if{latex}{\out{\hypertarget{method-calculate_fdr}{}}}
+\subsection{Method \code{calculate_fdr()}}{
+This is the workhorse function that calculates the conditional
+fdr estimate from the randomly pruned subsets of variants
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$calculate_fdr(
+  smooth = TRUE,
+  adjust = TRUE,
+  trait1_lim = c(0, 10),
+  trait1_nbr = 1001,
+  trait1_thin = 10,
+  trait2_lim = c(0, 3),
+  trait2_nbr = 31
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{smooth}}{Logical; whether to smooth the grid of crude fdr estimates;
+default \code{TRUE}.}
+
+\item{\code{adjust}}{Logical; whether to correct the fdr estimates to enforce
+monotonicity; default \code{TRUE}.}
+
+\item{\code{trait1_lim}}{TBA}
+
+\item{\code{trait1_nbr}}{TBA}
+
+\item{\code{trait1_thin}}{TBA}
+
+\item{\code{trait2_lim}}{TBA}
+
+\item{\code{trait2_nbr}}{TBA}
+}
+\if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}
