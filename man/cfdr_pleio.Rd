@@ -82,6 +82,25 @@ for estimating the cFDR. Default \code{NULL}(i.e. uninitialized)}
 
 \item{\code{seed}}{Numerical; suitable seed for setting the random number generator
 before starting random pruning of data. Default \code{NULL}(i.e. uninitialized)}
+
+\item{\code{fdr_grid_par}}{Named character vector of length 5, listing the
+default values for setting up the grid over which the conditional
+fdr is calculated\preformatted{   * `fdr_max`: maximum value for the fdr-trait axis of the grid -
+      larger values will be aggregated in a catch-all category; default 10
+   * `fdr_nbrk`: number of breaks along the fdr-trait axis, from zero
+      to `fdr_trait_max`; default 1001
+   * `fdr_thinfac`: factor controlling the thinning out of the bins
+      along the fdr-trait axis for smoothing and interpolation; default 10
+   * `cond_max`: maximum value for the conditioning trait axis of
+   the grid - larger values will be aggregated in a catch-all category;
+   default 3
+   * `cond_nbrk`: number of breaks along the conditioning trait
+   axis, from zero to `cond_trait_max`; defaults to 31.
+}}
+
+\item{\code{cfdr12}}{Estimated fdr for trait1 conditional on trait2; a list.}
+
+\item{\code{cfdr21}}{Estimated fdr for trait2 conditional on trait1; a list.}
 }
 \if{html}{\out{</div>}}
 }
@@ -90,7 +109,7 @@ before starting random pruning of data. Default \code{NULL}(i.e. uninitialized)}
 \itemize{
 \item \href{#method-init_data}{\code{cfdr_pleio$init_data()}}
 \item \href{#method-initialize_pruning_index}{\code{cfdr_pleio$initialize_pruning_index()}}
-\item \href{#method-calculate_fdr}{\code{cfdr_pleio$calculate_fdr()}}
+\item \href{#method-calculate_cond_fdr}{\code{cfdr_pleio$calculate_cond_fdr()}}
 \item \href{#method-clone}{\code{cfdr_pleio$clone()}}
 }
 }
@@ -188,41 +207,50 @@ defined.}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-calculate_fdr"></a>}}
-\if{latex}{\out{\hypertarget{method-calculate_fdr}{}}}
-\subsection{Method \code{calculate_fdr()}}{
+\if{html}{\out{<a id="method-calculate_cond_fdr"></a>}}
+\if{latex}{\out{\hypertarget{method-calculate_cond_fdr}{}}}
+\subsection{Method \code{calculate_cond_fdr()}}{
 This is the workhorse function that calculates the conditional
 fdr estimate from the randomly pruned subsets of variants
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$calculate_fdr(
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$calculate_cond_fdr(
+  fdr_trait,
+  cond_trait,
   smooth = TRUE,
   adjust = TRUE,
-  trait1_lim = c(0, 10),
-  trait1_nbr = 1001,
-  trait1_thin = 10,
-  trait2_lim = c(0, 3),
-  trait2_nbr = 31
+  fdr_max,
+  fdr_nbrk,
+  fdr_thinfac,
+  cond_max,
+  cond_nbrk
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
+\item{\code{fdr_trait}}{Integer indicating which for which trait the conditional
+fdr is to be calculated; must be 1 or 2.}
+
+\item{\code{cond_trait}}{Integer indicating which for which trait the conditional
+fdr is to be calculated; must be 1 or 2. Only one of
+\code{fdr_trait} or \code{cond_trait} needs to be specified.}
+
 \item{\code{smooth}}{Logical; whether to smooth the grid of crude fdr estimates;
 default \code{TRUE}.}
 
 \item{\code{adjust}}{Logical; whether to correct the fdr estimates to enforce
 monotonicity; default \code{TRUE}.}
 
-\item{\code{trait1_lim}}{TBA}
+\item{\code{fdr_max}}{TBA}
 
-\item{\code{trait1_nbr}}{TBA}
+\item{\code{fdr_nbrk}}{TBA}
 
-\item{\code{trait1_thin}}{TBA}
+\item{\code{fdr_thinfac}}{TBA}
 
-\item{\code{trait2_lim}}{TBA}
+\item{\code{cond_max}}{TBA}
 
-\item{\code{trait2_nbr}}{TBA}
+\item{\code{cond_nbrk}}{TBA}
 }
 \if{html}{\out{</div>}}
 }

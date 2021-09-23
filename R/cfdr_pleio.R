@@ -335,42 +335,100 @@ public = list(
     invisible(self)
   },
 
+  #' @field fdr_grid_par Named character vector of length 5, listing the
+  #'        default values for setting up the grid over which the conditional
+  #'        fdr is calculated
+  #'
+  #'        * `fdr_max`: maximum value for the fdr-trait axis of the grid -
+  #'           larger values will be aggregated in a catch-all category; default 10
+  #'        * `fdr_nbrk`: number of breaks along the fdr-trait axis, from zero
+  #'           to `fdr_trait_max`; default 1001
+  #'        * `fdr_thinfac`: factor controlling the thinning out of the bins
+  #'           along the fdr-trait axis for smoothing and interpolation; default 10
+  #'        * `cond_max`: maximum value for the conditioning trait axis of
+  #'        the grid - larger values will be aggregated in a catch-all category;
+  #'        default 3
+  #'        * `cond_nbrk`: number of breaks along the conditioning trait
+  #'        axis, from zero to `cond_trait_max`; defaults to 31.
+  fdr_grid_par = c(fdr_max = 10, fdr_nbrk = 1001, fdr_thinfac = 10,
+                   cond_max = 3, cond_nbrk = 31),
+
+  #' @field cfdr12 Estimated fdr for trait1 conditional on trait2; a list.
+  #' @field cfdr21 Estimated fdr for trait2 conditional on trait1; a list.
+  cfdr12 = list(),
+  cfdr21 = list(),
+
   #' @title Calculate the conditional fdr
   #' @description This is the workhorse function that calculates the conditional
   #'              fdr estimate from the randomly pruned subsets of variants
+  #' @param fdr_trait Integer indicating which for which trait the conditional
+  #'                  fdr is to be calculated; must be 1 or 2.
+  #' @param cond_trait Integer indicating which for which trait the conditional
+  #'                  fdr is to be calculated; must be 1 or 2. Only one of
+  #'                  `fdr_trait` or `cond_trait` needs to be specified.
   #' @param smooth Logical; whether to smooth the grid of crude fdr estimates;
   #'               default `TRUE`.
   #' @param adjust Logical; whether to correct the fdr estimates to enforce
   #'               monotonicity; default `TRUE`.
-  #' @param trait1_lim TBA
-  #' @param trait1_nbr TBA
-  #' @param trait1_thin TBA
-  #' @param trait2_lim TBA
-  #' @param trait2_nbr TBA
+  #' @param fdr_max TBA
+  #' @param fdr_nbrk TBA
+  #' @param fdr_thinfac TBA
+  #' @param cond_max TBA
+  #' @param cond_nbrk TBA
   #' @returns The updated `cfdr_pleio`-onject, invisibly.
-  calculate_fdr = function(smooth = TRUE, adjust = TRUE,
-                           trait1_lim = c(0, 10), trait1_nbr = 1001, trait1_thin = 10,
-                           trait2_lim = c(0, 3) , trait2_nbr = 31
+  calculate_cond_fdr = function(fdr_trait, cond_trait, smooth = TRUE, adjust = TRUE,
+                           fdr_max, fdr_nbrk, fdr_thinfac, cond_max, cond_nbrk
                           ) {
     ## FIXME: check inputs, setup etc.
+    if ( missing(fdr_trait) ) {
+      if ( missing(cond_trait) ) {
+        stop("Specify either fdr_trait or cond_trait")
+      } else {
+        stopifnot( cond_trait %in% 1:2 )
+        fdr_trait <- 3 - cond_trait
+      }
+    } else {
+      if ( missing(cond_trait) ) {
+        stopifnot( fdr_trait %in% 1:2 )
+        cond_trait <- 3 - fdr_trait
+      } else {
+        stopifnot( fdr_trait %in% 1:2 )
+        stopifnot( cond_trait %in% 1:2 )
+        stopifnot( cond_trait + fdr_trait != 3 )
+      }
+    }
+    ## Set the variable names
+    fdr_trait_pname  <- paste0("LOG10PVAL", fdr_trait)
+    cond_trait_pname <- paste0("LOG10PVAL", cond_trait)
+
     ## FIXME: warning /check if already calculated fdr exists?
 
+    ## Defaults; currently fixed
+    stopifnot("fdr_max currently fixed at default" = missing(fdr_max))
+    stopifnot("fdr_nbrk currently fixed at default" = missing(fdr_nbrk))
+    stopifnot("fdr_thinfac currently fixed at default" = missing(fdr_thinfac))
+    stopifnot("cond_max currently fixed at default" = missing(cond_max))
+    stopifnot("cond_nbrk currently fixed at default" = missing(cond_nbrk))
+
+    fdr_max <- self$fdr_grid_par["fdr_max"]
+    fdr_nbrk <- self$fdr_grid_par["fdr_nbrk"]
+    fdr_thinfac <- self$fdr_grid_par["fdr_thinfac"]
+    cond_max <- self$fdr_grid_par["cond_max"]
+    cond_nbrk <- self$fdr_grid_par["cond_nbrk"]
+
     ## Define the full breaks (with open-ended class to the right)
-    trait1_breaks <- c( seq(trait1_lim[1], trait1_lim[2], length = trait1_nbr), Inf)
-    trait2_breaks <- c( seq(trait2_lim[1], trait2_lim[2], length = trait2_nbr), Inf)
+    fdr_breaks  <- c( seq(0, fdr_max, length = fdr_nbrk), Inf )
+    cond_breaks <- c( seq(0, cond_max, length = cond_nbrk), Inf )
 
     #' Breaks for trait1, but not trait2, are shifted half a bin-width downward;
     #' comment in original function ind_look states "shift half-bin to imitate old codes"
-    trait1_breaks = trait1_breaks - (trait1_breaks[2] - trait1_breaks[1]) / 2
-
-    ## Some simple internal helper functions
-    ## FIXME: make the proportions an external function passed in?
+    fdr_breaks = fdr_breaks - (fdr_breaks[2] - fdr_breaks[1]) / 2
 
     ## Set up a matrix to accumulate the fdr-tables
-    ## Size is somewhat weird, due to unmotivated reductions in matrix size
+    ## Size is somewhat weird, due to unmotivated??? reductions in matrix size
     ## in the original code, see comment below
-    fdr_table <- matrix(0, nrow = trait2_nbr - 1,
-                        ncol = round( (trait1_nbr - 1)/ trait1_thin ) )
+    fdr_table <- matrix(0, nrow = cond_nbrk - 1,
+                        ncol = round( (fdr_nbrk - 1)/ fdr_thinfac ) )
     ## We store intermediate results for diagnostics
     fdrtab_iter <- array(NA, c(nrow(fdr_table), ncol(fdr_table), self$n_iter))
     fdr_table_unadj <- fdr_table
@@ -380,16 +438,16 @@ public = list(
     {
       cat(i, "... ", sep="")
 
-      ## Extract the p-values
-      p1 <- self$data$logpval1[self$index[,i]]
-      p2 <- self$data$logpval2[self$index[,i]]
+      ## Extract the p-values - as vectors
+      p_fdr_trait  <- ( self$trait_data[ self$index[,i], ..fdr_trait_pname ] )[[1]]
+      p_cond_trait <- ( self$trait_data[ self$index[,i], ..cond_trait_pname ] )[[1]]
 
       ## Faster with .bincode (and same parameters), but no nice row / col category names
-      trait1_bins <- cut(p1, breaks = trait1_breaks, right = FALSE, include.lowest = TRUE)
-      trait2_bins <- cut(p2, breaks = trait2_breaks, right = FALSE, include.lowest = TRUE)
+      fdr_bins  <- cut(p_fdr_trait, breaks = fdr_breaks, right = FALSE, include.lowest = TRUE)
+      cond_bins <- cut(p_cond_trait, breaks = cond_breaks, right = FALSE, include.lowest = TRUE)
 
       ## Note: set factor levels explicitly if using .bincode
-      tab <- table(trait2_bins, trait1_bins)
+      tab <- table(cond_bins, fdr_bins)
 
       ## From the original code: cumulative counts per cell, conditional on the
       ## binned p-value for trait1, accumulating from most to least significant
@@ -415,6 +473,10 @@ public = list(
 
       ## For compatibility with pleioFDR; comment in ind_look states,
       ## "trim to conform to legacy codes"
+      ##
+      ## FIXME: current hypothesis is that this trims the last, open-on-one side
+      ## catch-all interval, as we could not assign a bin center for using it in
+      ## estimation - VERIFY
       cumtab <- cumtab[ 1:(nrow(cumtab) - 1), 1:(ncol(cumtab) - 1)]
       n <- n[ 1:(nrow(n) - 1), 1:(ncol(n) - 1)]
 
@@ -425,8 +487,8 @@ public = list(
 
       ## Thin out the column space of the distribution
       ## I guess to keep the memory down for the smoothing procedure
-      trait1_ndx_thin <- seq(1, ncol(F12), by = trait1_thin)
-      F12 <- F12[, trait1_ndx_thin]
+      fdr_ndx_thin <- seq(1, ncol(F12), by = fdr_thinfac)
+      F12 <- F12[, fdr_ndx_thin]
 
       ## If required, smooth the empirical distribution function
       ## This is done on the log-odds scale, and uses the length of
@@ -442,7 +504,7 @@ public = list(
         ci <- prop_ci(cumtab, n)
         ## Calculate the weights as 1 / squared interval lengths
         weights <- as.vector( 1/matrixStats::rowDiffs(ci)^2 )
-        weights <- matrix(weights, nrow = nrow(F12))[, trait1_ndx_thin]
+        weights <- matrix(weights, nrow = nrow(F12))[, fdr_ndx_thin]
 
         ## Should any infinite value have it made so far, we zero them out
         ndx2 <- is.infinite(log_odds)
@@ -463,7 +525,7 @@ public = list(
       ## So all we have to do is to transform the original breaks for -log10(p1)
       ## back to the p-value scale (thinned out)
       ## Note: these are the left edges of the p1-bins
-      null_lp <- trait1_breaks[trait1_ndx_thin]
+      null_lp <- fdr_breaks[fdr_ndx_thin]
       F0 <- matrix(10^(-null_lp), nrow = nrow(F12), ncol = ncol(F12), byrow = TRUE)
 
       ## Here we go: per-iteration fdr table, suitable truncated
@@ -506,27 +568,34 @@ public = list(
     ## p-values into the table and doing linear interpolation
     ## Note that we scale the p-values to the grid of the fdr table,
     ## which requires fiddling with bin widths and such
-    trait1_breaks_short <- trait1_breaks[trait1_ndx_thin]
-    trait1_bin_width <- trait1_breaks_short[2] - trait1_breaks_short[1]
-    col_ndx <- self$data$logpval1 / trait1_bin_width
+    fdr_breaks_short <- fdr_breaks[fdr_ndx_thin]
+    fdr_bin_width    <- fdr_breaks_short[2] - fdr_breaks_short[1]
+    col_ndx <- self$trait_data[[fdr_trait_pname]] / fdr_bin_width
     col_ndx <- pmax(1, pmin(ncol(fdr_table), 1 + col_ndx))
 
-    trait2_bin_width <- trait2_breaks[2] - trait2_breaks[1]
-    row_ndx <- self$data$logpval2 / trait2_bin_width
+    cond_bin_width <- cond_breaks[2] - cond_breaks[1]
+    row_ndx <- self$trait_data[[cond_trait_pname]] / cond_bin_width
     row_ndx <- pmax(1, pmin(nrow(fdr_table), 1 + row_ndx))
 
     ## Interpolate & add to main data element
     fdr_variants <- akima::bilinear(1:nrow(fdr_table), 1:ncol(fdr_table), fdr_table, row_ndx, col_ndx)$z
-    self$data <- self$data[, fdr12 := fdr_variants]
+    ##self$data <- self$data[, fdr12 := fdr_variants]
 
-    ## Internal information: the final lookup-table, bith adjusted and
+    ## Internal information: the final lookup-table, both adjusted and
     ## unadjusted, and the per-iteration lookup-tables
     ## Also, the relevant bin limits for heatmap plotting
     ## FIXME: what about the shifted trait1-bins here?! See above
-    self$internal <- list(fdr_table = fdr_table,
+    element_name <- paste0("cfdr", fdr_trait, cond_trait)
+    assign( x = element_name,
+            value = list(fdr_table = fdr_table,
                           fdr_table_unadj = fdr_table_unadj,
                           fdrtab_iter = fdrtab_iter,
-                          trait1_coord = c( trait1_breaks_short, trait1_lim[2] ),
-                          trait2_coord = trait2_breaks[1:(nrow(fdr_table)+1)] )
+                          fdr_coord = c( fdr_breaks_short, fdr_max ),
+                          cond_coord = cond_breaks[1:(nrow(fdr_table)+1)]
+                         ),
+            envir = self
+    )
+
+    invisible( self )
   }
 ) )
