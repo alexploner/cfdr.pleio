@@ -9,15 +9,11 @@
 #' @examples
 #' cfdr_pleio$new()
 #' @export
-cfdr_pleio <- R6::R6Class("cfdr_pleio",
-public = list(
+cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
+
   #' @field trait_data Genetic data for both traits, aligned with each other and
   #' the reference data
-  trait_data = NULL,
-
   #' @field trait_names Character vector of length two, the names of the traits
-  trait_names = NULL,
-
   #' @field trait_columns Named character vector of length three, listing the
   #'        names of the required columns in the input trait data. These are
   #'        colums are:
@@ -26,17 +22,15 @@ public = list(
   #'        * `beta`: variant-specific effect sizes (log-odds ratios or similar);
   #'                  default `"BETA"` (numeric)
   #'        * `pval`: p-value corresponding to `beta`; default `"PVAL"` (numeric).
+  trait_data    = NULL,
+  trait_names   = NULL,
   trait_columns = c(id = "SNP", beta = "BETA", pval = "PVAL"),
 
   #' @field refdat_orig An object of class `refdata_location` that points at the
   #'        original (uncompressed) genetic reference data
-  refdat_orig = NULL,
-
   #' @field refdat_local An object of class `refdata_location` that points at the
   #'        pre-processed (compressed) genetic reference data used for the current
   #'        analysis
-  refdat_local = NULL,
-
   #' @field ref_columns Named character vector of length seven, listing the
   #'        names of the required columns in the input trait data. These columns
   #'        are:
@@ -49,10 +43,57 @@ public = list(
   #'        * `maf`: minor allele frequency; default `"MAF"` (numeric)
   #'        * `interg`: flag indicating whether the variant is intergenic (1)
   #'                    or not (0); default `"INTERGENIC"` (numeric 0/1)
-  ref_columns = c(id = "SNP", chr = "CHR", bp = "BP", a1 = "A1", a2 = "A2",
-                  maf = "MAF", interg = "INTERGENIC"),
+  refdat_orig  = NULL,
+  refdat_local = NULL,
+  ref_columns  = c(id = "SNP", chr = "CHR", bp = "BP", a1 = "A1", a2 = "A2",
+                   maf = "MAF", interg = "INTERGENIC"),
+
+  #' @field index A logical matrix of size (number of variants) x (number of iterations)
+  #'        This is the container that holds the multiple randomly pruned subsets
+  #'        of the full data from which the cfdr is estimated. Default `NULL`
+  #'        (i.e. uninitialized)
+  #' @field n_iter Numerical; indicates the number of random prunings to be used
+  #'        for estimating the cFDR. Default `NULL`(i.e. uninitialized)
+  #' @field seed Numerical; suitable seed for setting the random number generator
+  #'        before starting random pruning of data. Default `NULL`(i.e. uninitialized)
+  #' @field gc_correct List; either NULL, i.e. not initialized, or with two
+  #'                   elements:
+  #'
+  #'                      * `corrfac`: a numerical vector of length two, the actual
+  #'                      correction factors applied
+  #'                      * `corrfac_all`: a numerical matrix with two columns and
+  #'                      `n_iter` rows, which holds the per-pruning-index correction
+  #'                      factors
+  index  = NULL,
+  n_iter = NULL,
+  seed   = NULL,
+  gc_correct = list(),
+
+  #' @field fdr_grid_par Named character vector of length 5, listing the
+  #'        default values for setting up the grid over which the conditional
+  #'        fdr is calculated
+  #'
+  #'        * `fdr_max`: maximum value for the fdr-trait axis of the grid -
+  #'           larger values will be aggregated in a catch-all category; default 10
+  #'        * `fdr_nbrk`: number of breaks along the fdr-trait axis, from zero
+  #'           to `fdr_trait_max`; default 1001
+  #'        * `fdr_thinfac`: factor controlling the thinning out of the bins
+  #'           along the fdr-trait axis for smoothing and interpolation; default 10
+  #'        * `cond_max`: maximum value for the conditioning trait axis of
+  #'        the grid - larger values will be aggregated in a catch-all category;
+  #'        default 3
+  #'        * `cond_nbrk`: number of breaks along the conditioning trait
+  #'        axis, from zero to `cond_trait_max`; defaults to 31.
+  #' @field cfdr12 Estimated fdr for trait1 conditional on trait2; a list.
+  #' @field cfdr21 Estimated fdr for trait2 conditional on trait1; a list.
+  fdr_grid_par = c(fdr_max = 10, fdr_nbrk = 1001, fdr_thinfac = 10,
+                   cond_max = 3, cond_nbrk = 31),
+  cfdr12 = list(),
+  cfdr21 = list(),
+
 
   #' @description Initialize an empty `cfdr_pleio` object
+  #'
   #' @param trait1 data.table object, genetic data for the first trait
   #' @param trait2 data.table, genetic data for the second trait
   #' @param trait_names Character vector of length two, the names of the traits
@@ -83,11 +124,10 @@ public = list(
   #'
   #' @seealso \code{\link{refdat_location}}
   init_data = function(trait1, trait2, trait_names, trait_columns,
-                       refdat, ref_columns, local_refdat_path = "./local_refdat",
-                       correct_GC = TRUE, correct_SO = FALSE,
-                       exclusion_range, filter_maf_min = 0.005,
-                       filter_ambiguous = FALSE, filter_fisher = FALSE
-                      ) {
+           refdat, ref_columns, local_refdat_path = "./local_refdat",
+           correct_GC = TRUE, correct_SO = FALSE, exclusion_range,
+           filter_maf_min = 0.005, filter_ambiguous = FALSE, filter_fisher = FALSE
+          ) {
     ## Check that arguments have right class
     if ( !inherits(trait1, "data.table") ) trait1 <- data.table( trait1 )
     if ( !inherits(trait2, "data.table") ) trait2 <- data.table( trait2 )
@@ -166,32 +206,34 @@ public = list(
     if ( !is.na(filter_maf_min) ) {
       ndx_keep <- ndx_keep & reftab$MAF > filter_maf_min
     }
+
     ## Specified exclusions here
     ## FIXME: structure should have been tested above already
     if ( !missing(exclusion_range) ) {
       for (i in 1:nrow(exclusion_range)) {
         ndx_keep <- ndx_keep & (
         ## Keep if....
-        (reftab$CHR != exclusion_range$chr)   |  ## ... on wrong chromosome
+          (reftab$CHR != exclusion_range$chr) |  ## ... on wrong chromosome
           (reftab$BP < exclusion_range$from)  |  ## ... before the range
           (reftab$BP > exclusion_range$to)       ## ... after the range
         )
       }
     }
-    #' Filter for ambiguous SNPs, based on reference allele information, if required
-    #' (not default, but specified for Edu/Swb example)
-    #'
-    #' So ambiguous is when the SNP variants are the naturally complementary pairs,
-    #' cos in this case, a simple strand-mixup could lead to switch that is not
-    #' really a SNP (iow, exclude SNPs that are essentially just a flip between
-    #' strands)... I think, though this may be more complicated
-    #' https://www.snpedia.com/index.php/Ambiguous_flip
-    #'
-    #' Anyhoozle, this is actually the definition employed for the pre-cooked
-    #' reference data, the confusing python code not withstanding; see
-    #' read_matlab.R for details and verification, but this is exactly the
-    #' definition in used in
-    #' https://precimed.s3-eu-west-1.amazonaws.com/pleiofdr/ref9545380_1kgPhase3eur_LDr2p1.mat
+
+    ## Filter for ambiguous SNPs, based on reference allele information, if required
+    ## (not default, but specified for Edu/Swb example)
+    ##
+    ## So ambiguous is when the SNP variants are the naturally complementary pairs,
+    ## cos in this case, a simple strand-mixup could lead to switch that is not
+    ## really a SNP (iow, exclude SNPs that are essentially just a flip between
+    ## strands)... I think, though this may be more complicated
+    ## https://www.snpedia.com/index.php/Ambiguous_flip
+    ##
+    ## Anyhoozle, this is actually the definition employed for the pre-cooked
+    ## reference data, the confusing python code not withstanding; see
+    ## read_matlab.R for details and verification, but this is exactly the
+    ## definition in used in
+    ## https://precimed.s3-eu-west-1.amazonaws.com/pleiofdr/ref9545380_1kgPhase3eur_LDr2p1.mat
     if ( !missing(filter_ambiguous) ) {
       ambi <- c("C:G", "G:C", "A:T", "T:A")
       AB   <- paste(reftab$A1, reftab$A2, sep = ":")
@@ -236,20 +278,6 @@ public = list(
     invisible(self)
   },
 
-  #' @field index A logical matrix of size (number of variants) x (number of iterations)
-  #'        This is the container that holds the multiple randomly pruned subsets
-  #'        of the full data from which the cfdr is estimated. Default `NULL`
-  #'        (i.e. uninitialized)
-  index = NULL,
-
-  #' @field n_iter Numerical; indicates the number of random prunings to be used
-  #'        for estimating the cFDR. Default `NULL`(i.e. uninitialized)
-  n_iter = NULL,
-
-  #' @field seed Numerical; suitable seed for setting the random number generator
-  #'        before starting random pruning of data. Default `NULL`(i.e. uninitialized)
-  seed = NULL,
-
   #' @description Set up the randomly pruned index matrix for cFDR estimation
   #' @param n_iter Number of random prunings
   #' @param seed Integer; random seed for pruning; if missing, the function will
@@ -257,15 +285,18 @@ public = list(
   #' @param force Logical; indicate whether to override an existing index.
   #'        Default `FALSE`, which stops with a warning if the index has been
   #'        defined.
+
   initialize_pruning_index = function(n_iter, seed, force = FALSE) {
 
     ## FIXME: has the object been initialized?! i.e. state check
 
     ## Check: does index exist? Only kill if forced to
     if (is.matrix(self$index)) {
-      if (!force) stop("Pruning index already defined, use 'force=TRUE' to discard")
-    } else {
-      message("Discarding existing pruning index")
+      if (!force) {
+        stop("Pruning index already defined, use 'force=TRUE' to discard")
+      } else {
+        message("Discarding existing pruning index")
+      }
     }
 
     ## Check & set number of iterations
@@ -297,15 +328,15 @@ public = list(
     chr_set   <- get_chr_set(self$refdat_local)
     start_chr <- 1
     ## FIXME - check: is this order correct?!
-    for (i in chr_set)
-    {
+    for (i in chr_set) {
+
       cat("chr =", i, "\n")
       tmp <- readRDS( get_chrmat( self$refdat_local, i))
       chr_len <- nrow(tmp)
 
       ## Loop over iterations (columns in row block)
-      for (j in 1:n_iter)
-      {
+      for (j in 1:n_iter) {
+
         cat("\titer =", j, "\n")
         ## Generate a random permutation of the variants on the current
         ## chromosome
@@ -326,37 +357,53 @@ public = list(
 
         ## Put this into the full index matrix
         self$index[start_chr:(start_chr + chr_len -1), j] <- keep
+
       } ## end of loop across one chromosome
 
       ## Update the start of chromosome pointer
       start_chr <- start_chr + chr_len
-    } ## End of loop across chromosomes
+
+    }  ## End of loop across chromosomes
+
+    ## Calculate a per-pruning-index correction factor for genetic correlation
+    ##
+    ## Note that this is based on genetic correlation across variants in the same
+    ## pruning iteration, i.e. nominally not in LD (as used for the Edu/Swb
+    ## example, see config.txt). Thefore, using the integenic variants seems somewhat
+    ## of an overkill.
+    ##
+    ## Note that we use a more recent & corrected reference, namely
+    ## Dadd, Weale & Lewis, Genetic Epidemiology 2009 at
+    ## https://onlinelibrary.wiley.com/doi/pdf/10.1002/gepi.20379
+    ##
+    ## FIXME: inspect & possibly implement the "in-house" method, which takes the
+    ## median over fairly non-extreme percentiles of the z-scores (instead of
+    ## the z-scores) in order to calculate the correction factors
+
+    ## Load the list of annotated variants for the intergenic-flag
+    vartab <- readRDS( get_variants( self$refdat_local ))
+
+    ## Calculate the test statistics corresponding to the p-values
+    zscore  <-self$trait_data[, lapply(.SD, p2z), .SDcols = c("LOG10PVAL1","LOG10PVAL2")]
+    gc_cf   <- matrix(0, nrow = self$n_iter, ncol = 2)
+    for (i in 1:self$n_iter) {
+      ## Denominator is not quite a quantile of the chi2-distribution
+      ## with df=1, see Dadd et al.
+      gc_cf[i, ] <- as.matrix( zscore[self$index[,i] & vartab$INTERGENIC, lapply(.SD, function(x) median(x)/sqrt(0.4549))] )
+    }
+
+    ## Summarize across iterations
+    gc_comb <- apply(gc_cf, 2, median, na.rm = TRUE)
+    ## Correct FIXME: nicer for data.table??
+    zscore  <- sweep( zscore, 2, gc_comb, FUN = "/" )
+    logpval <- apply( zscore, 2, z2p )
+    ## Play back
+    self$trait_data[, c("LOG10PVAL1corr", "LOG10PVAL2corr")] <- as.data.table(logpval)
+    self$gc_correct = list(corrfac = gc_comb, corrfac_all = gc_cf)
 
     invisible(self)
   },
 
-  #' @field fdr_grid_par Named character vector of length 5, listing the
-  #'        default values for setting up the grid over which the conditional
-  #'        fdr is calculated
-  #'
-  #'        * `fdr_max`: maximum value for the fdr-trait axis of the grid -
-  #'           larger values will be aggregated in a catch-all category; default 10
-  #'        * `fdr_nbrk`: number of breaks along the fdr-trait axis, from zero
-  #'           to `fdr_trait_max`; default 1001
-  #'        * `fdr_thinfac`: factor controlling the thinning out of the bins
-  #'           along the fdr-trait axis for smoothing and interpolation; default 10
-  #'        * `cond_max`: maximum value for the conditioning trait axis of
-  #'        the grid - larger values will be aggregated in a catch-all category;
-  #'        default 3
-  #'        * `cond_nbrk`: number of breaks along the conditioning trait
-  #'        axis, from zero to `cond_trait_max`; defaults to 31.
-  fdr_grid_par = c(fdr_max = 10, fdr_nbrk = 1001, fdr_thinfac = 10,
-                   cond_max = 3, cond_nbrk = 31),
-
-  #' @field cfdr12 Estimated fdr for trait1 conditional on trait2; a list.
-  #' @field cfdr21 Estimated fdr for trait2 conditional on trait1; a list.
-  cfdr12 = list(),
-  cfdr21 = list(),
 
   #' @title Calculate the conditional fdr
   #' @description This is the workhorse function that calculates the conditional
@@ -370,15 +417,20 @@ public = list(
   #'               default `TRUE`.
   #' @param adjust Logical; whether to correct the fdr estimates to enforce
   #'               monotonicity; default `TRUE`.
+  #' @param correct_gc logical; indicates whether to apply a correction factor
+  #'                   for genetic correlation to the test statistics underlying
+  #'                   the trait p-values; default `TRUE`.
   #' @param fdr_max TBA
   #' @param fdr_nbrk TBA
   #' @param fdr_thinfac TBA
   #' @param cond_max TBA
   #' @param cond_nbrk TBA
   #' @returns The updated `cfdr_pleio`-onject, invisibly.
-  calculate_cond_fdr = function(fdr_trait, cond_trait, smooth = TRUE, adjust = TRUE,
-                           fdr_max, fdr_nbrk, fdr_thinfac, cond_max, cond_nbrk
-                          ) {
+  calculate_cond_fdr = function(fdr_trait, cond_trait, smooth = TRUE,
+                                adjust = TRUE, correct_gc = TRUE,
+                                fdr_max, fdr_nbrk, fdr_thinfac, cond_max, cond_nbrk
+                              ) {
+
     ## FIXME: check inputs, setup etc.
     if ( missing(fdr_trait) ) {
       if ( missing(cond_trait) ) {
@@ -400,6 +452,12 @@ public = list(
     ## Set the variable names
     fdr_trait_pname  <- paste0("LOG10PVAL", fdr_trait)
     cond_trait_pname <- paste0("LOG10PVAL", cond_trait)
+
+    ## Switch to corrected version if required
+    if (correct_gc) {
+      fdr_trait_pname  <- paste0(fdr_trait_pname, "corr")
+      cond_trait_pname <- paste0(cond_trait_pname, "corr")
+    }
 
     ## FIXME: warning /check if already calculated fdr exists?
 
@@ -427,15 +485,14 @@ public = list(
     ## Set up a matrix to accumulate the fdr-tables
     ## Size is somewhat weird, due to unmotivated??? reductions in matrix size
     ## in the original code, see comment below
-    fdr_table <- matrix(0, nrow = cond_nbrk - 1,
-                        ncol = round( (fdr_nbrk - 1)/ fdr_thinfac ) )
+    fdr_table <- matrix(0, nrow = cond_nbrk - 1, ncol = round( (fdr_nbrk - 1)/ fdr_thinfac ) )
     ## We store intermediate results for diagnostics
     fdrtab_iter <- array(NA, c(nrow(fdr_table), ncol(fdr_table), self$n_iter))
     fdr_table_unadj <- fdr_table
 
     ## Loop over the random prunings
-    for (i in (1:self$n_iter))
-    {
+    for (i in (1:self$n_iter)) {
+
       cat(i, "... ", sep="")
 
       ## Extract the p-values - as vectors
@@ -468,8 +525,7 @@ public = list(
       ## Calculate the total number of variants for each bin of trait2 p-values
       ## (marginal sum), and repeat this vector for each column of the original
       ## matrix
-      n <- matrix( matrixStats::rowSums2(cumtab12),
-                   nrow = nrow(cumtab12), ncol = ncol(cumtab12) )
+      n <- matrix( matrixStats::rowSums2(cumtab12), nrow = nrow(cumtab12), ncol = ncol(cumtab12) )
 
       ## For compatibility with pleioFDR; comment in ind_look states,
       ## "trim to conform to legacy codes"
@@ -478,7 +534,7 @@ public = list(
       ## catch-all interval, as we could not assign a bin center for using it in
       ## estimation - VERIFY
       cumtab <- cumtab[ 1:(nrow(cumtab) - 1), 1:(ncol(cumtab) - 1)]
-      n <- n[ 1:(nrow(n) - 1), 1:(ncol(n) - 1)]
+      n      <- n[ 1:(nrow(n) - 1), 1:(ncol(n) - 1)]
 
       ## Here we have per row the conditional cumulative distribution function
       ## F(p_1|p_2) as seen in the denominator of eq. 6 of Smeland et al,
@@ -494,8 +550,8 @@ public = list(
       ## This is done on the log-odds scale, and uses the length of
       ## the confidence interval as weight
       ## Smoothing the individual iterations, instead of the average?
-      if (smooth)
-      {
+      if (smooth) {
+
         ## Convert cumulative proportions to log-odds
         log_odds <- logit(F12)
 
@@ -541,26 +597,21 @@ public = list(
       fdr_table <- fdr_table + fdr
     }
 
-    #' Average the sums
+    ## Average the sums
     fdr_table <- fdr_table / self$n_iter
 
-    # Adjust to be monotonous, if required
+    ## Adjust to be monotonous, if required
+    if (adjust) {
 
-    if (adjust)
-    {
       ## Save for reference
       fdr_table_unadj <- fdr_table
-      for (nc in 1:ncol(fdr_table))
-      {
-        for (nr in 2:nrow(fdr_table))
-        {
+      for (nc in 1:ncol(fdr_table)) {
+        for (nr in 2:nrow(fdr_table)) {
           fdr_table[nr, nc] <- min(fdr_table[nr, nc], fdr_table[nr-1, nc])
         }
-        if (nc > 1)
-        {
+        if (nc > 1) {
           fdr_table[, nc] <- matrixStats::rowMins(fdr_table[, (nc-1):nc])
         }
-
       }
     }
 
@@ -588,14 +639,16 @@ public = list(
     element_name <- paste0("cfdr", fdr_trait, cond_trait)
     assign( x = element_name,
             value = list(fdr_table = fdr_table,
-                          fdr_table_unadj = fdr_table_unadj,
-                          fdrtab_iter = fdrtab_iter,
-                          fdr_coord = c( fdr_breaks_short, fdr_max ),
-                          cond_coord = cond_breaks[1:(nrow(fdr_table)+1)]
-                         ),
+                         fdr_table_unadj = fdr_table_unadj,
+                         fdrtab_iter = fdrtab_iter,
+                         fdr_coord = c( fdr_breaks_short, fdr_max ),
+                         cond_coord = cond_breaks[1:(nrow(fdr_table)+1)],
+                         fdr_variants = fdr_variants
+                        ),
             envir = self
-    )
+          )
 
     invisible( self )
   }
-) )
+
+) ) ## End class definition

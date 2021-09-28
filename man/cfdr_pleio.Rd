@@ -7,7 +7,6 @@
 The updated \code{cfdr_pleio}-onject, invisibly.
 Breaks for trait1, but not trait2, are shifted half a bin-width downward;
 comment in original function ind_look states "shift half-bin to imitate old codes"
-Average the sums
 }
 \description{
 A class that captures all data for calculating the conditional
@@ -22,20 +21,6 @@ cfdr_pleio$new()
 }
 \seealso{
 \code{\link{refdat_location}}
-Filter for ambiguous SNPs, based on reference allele information, if required
-(not default, but specified for Edu/Swb example)
-
-So ambiguous is when the SNP variants are the naturally complementary pairs,
-cos in this case, a simple strand-mixup could lead to switch that is not
-really a SNP (iow, exclude SNPs that are essentially just a flip between
-strands)... I think, though this may be more complicated
-https://www.snpedia.com/index.php/Ambiguous_flip
-
-Anyhoozle, this is actually the definition employed for the pre-cooked
-reference data, the confusing python code not withstanding; see
-read_matlab.R for details and verification, but this is exactly the
-definition in used in
-https://precimed.s3-eu-west-1.amazonaws.com/pleiofdr/ref9545380_1kgPhase3eur_LDr2p1.mat
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -82,6 +67,14 @@ for estimating the cFDR. Default \code{NULL}(i.e. uninitialized)}
 
 \item{\code{seed}}{Numerical; suitable seed for setting the random number generator
 before starting random pruning of data. Default \code{NULL}(i.e. uninitialized)}
+
+\item{\code{gc_correct}}{List; either NULL, i.e. not initialized, or with two
+elements:\preformatted{                 * `corrfac`: a numerical vector of length two, the actual
+                 correction factors applied
+                 * `corrfac_all`: a numerical matrix with two columns and
+                 `n_iter` rows, which holds the per-pruning-index correction
+                 factors
+}}
 
 \item{\code{fdr_grid_par}}{Named character vector of length 5, listing the
 default values for setting up the grid over which the conditional
@@ -218,6 +211,7 @@ fdr estimate from the randomly pruned subsets of variants
   cond_trait,
   smooth = TRUE,
   adjust = TRUE,
+  correct_gc = TRUE,
   fdr_max,
   fdr_nbrk,
   fdr_thinfac,
@@ -241,6 +235,10 @@ default \code{TRUE}.}
 
 \item{\code{adjust}}{Logical; whether to correct the fdr estimates to enforce
 monotonicity; default \code{TRUE}.}
+
+\item{\code{correct_gc}}{logical; indicates whether to apply a correction factor
+for genetic correlation to the test statistics underlying
+the trait p-values; default \code{TRUE}.}
 
 \item{\code{fdr_max}}{TBA}
 
