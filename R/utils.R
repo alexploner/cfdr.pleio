@@ -82,3 +82,21 @@ sigmoid <- function(x, d = dim(x), dn = dimnames(x)) {
   if (!is.null(dn)) dimnames(ret) <- dn
   ret
 }
+
+#' Convert between p-values and test statistics
+#'
+#' Helper functions for converting between two-sided p-values on the -log10-scale
+#' and positive test statistics
+#'
+#' @param p A vector of p-values on the -log10-scale (i.e. zero to infinity)
+#' @param z A vector of test statistics from a standard normal null distribution
+#'
+#' @returns A vector of test statistics or p-values, respectively
+#' @examples
+#' p2z( -log10(0.05) )
+#' z2p( 1.96 )
+#' @export
+p2z <- function(p) abs( qnorm(0.5*10^(-p)) )
+
+#' @rdname p2z
+z2p <- function(z) -log10( 2*pnorm(-abs(z)) )
