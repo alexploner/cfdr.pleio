@@ -2,19 +2,18 @@
 % Please edit documentation in R/cfdr_pleio.R
 \name{cfdr_pleio}
 \alias{cfdr_pleio}
-\title{Calculate the conditional fdr}
+\title{A class for calculating conditional & conjunctional fdr for pleiotropy analysis}
 \value{
 The updated \code{cfdr_pleio}-onject, invisibly.
 Breaks for trait1, but not trait2, are shifted half a bin-width downward;
 comment in original function ind_look states "shift half-bin to imitate old codes"
+
+A data.table with 5-8 columns
 }
 \description{
 A class that captures all data for calculating the conditional
 and conjuncational fdr for pleiotropy analysis, and manages the necessary
 analysis flow
-}
-\details{
-A class for calculating conditional & conjunctional fdr for pleiotropy analysis
 }
 \examples{
 cfdr_pleio$new()
@@ -103,6 +102,7 @@ fdr is calculated\preformatted{   * `fdr_max`: maximum value for the fdr-trait a
 \item \href{#method-init_data}{\code{cfdr_pleio$init_data()}}
 \item \href{#method-initialize_pruning_index}{\code{cfdr_pleio$initialize_pruning_index()}}
 \item \href{#method-calculate_cond_fdr}{\code{cfdr_pleio$calculate_cond_fdr()}}
+\item \href{#method-get_trait_results}{\code{cfdr_pleio$get_trait_results()}}
 \item \href{#method-clone}{\code{cfdr_pleio$clone()}}
 }
 }
@@ -252,6 +252,19 @@ the trait p-values; default \code{TRUE}.}
 }
 \if{html}{\out{</div>}}
 }
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-get_trait_results"></a>}}
+\if{latex}{\out{\hypertarget{method-get_trait_results}{}}}
+\subsection{Method \code{get_trait_results()}}{
+This function returns the original trait data as a data.table
+and adds any conditional fdrs that have been calculated as
+extra columns; if both conditional fdrs have been calculated,
+the function also adds the conjunctional fdr.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$get_trait_results()}\if{html}{\out{</div>}}
+}
+
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-clone"></a>}}

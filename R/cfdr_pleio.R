@@ -405,7 +405,6 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
   },
 
 
-  #' @title Calculate the conditional fdr
   #' @description This is the workhorse function that calculates the conditional
   #'              fdr estimate from the randomly pruned subsets of variants
   #' @param fdr_trait Integer indicating which for which trait the conditional
@@ -649,6 +648,25 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
           )
 
     invisible( self )
-  }
+  },
 
+  #' @description This function returns the original trait data as a data.table
+  #'              and adds any conditional fdrs that have been calculated as
+  #'              extra columns; if both conditional fdrs have been calculated,
+  #'              the function also adds the conjunctional fdr.
+  #' @returns A data.table with 5-8 columns
+  get_trait_results = function() {
+
+    ret <- cbind(self$trait_data[, 1:5],
+                 cfdr12 = self$cfdr12$fdr_variants,
+                 cfdr21 = self$cfdr21$fdr_variants
+                )
+    if (ncol(ret) == 5) {
+      warning("No conditional fdrs calculated - returning the original data")
+    }
+    if (ncol(ret) == 7) {
+      ret[, conj_fdr := pmax(cfdr12, cfdr21)]
+    }
+    ret
+  }
 ) ) ## End class definition
