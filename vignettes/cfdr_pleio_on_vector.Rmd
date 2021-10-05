@@ -1,0 +1,112 @@
+---
+title: "Running `cfdr_pleio` on vector.meb.ki.se"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Running cfdr.pleio on vector.meb.ki.se}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+This is a very specific set of instructions for getting the development version of package `cfdr_pleio` to run on the computational server `vector` at the Department of Medical Epidemiology (MEB) at Karolinska Institutet. This is clearly a super-local document and will be removed with wider distribution of the package, so if you don't know what any of the terms mean in the preceding sentence, you are a. not KK, and b. probably seeing this by mistake.
+
+## Installation
+
+Install the package source (at time of writing `cfdr.pleio_0.0.0.9900.tar.gz`, but the version number will change) in your personal R installation on vector: copy the file over, e.g. to your home directory, and run
+
+```r
+install.packages("~/cfdr.pleio_0.0.0.9900.tar.gz", repo = NULL)
+```
+
+Copy the general genetic reference data to a suitable working directory on `vector`. The reference data is a set of 23 files that were part of the tar-file `pleiopack_ibdpd_210405.tar` from April this year, and can be found in directory `pleiofdr/gen_ref/bindata` after unpacking the tar file. The set consists of one general data table describing the annotated variants  in file `all_chr_perVariant.rds`, and 22 files containing the LD-structure information for each chromosome, with the chromosome number in the name; the total size of all files combined is ca. 3GB. 
+
+Note that this is the set with the complete information extracted from the 1000 genome project. This is not to be confused with other sub-directories in the tar file that contain file sets with the same names: these have already been pre-processed for working with the old UC/CD/PD data, and are substantially smaller. 
+
+From here, I assume the following directory structure:
+
+* `~/proj`: the main project folder
+* `~/proj/general_reference`: the general reference data as described above
+* `~/proj/local_reference`: a place for the local, pre-processed reference data; if you are running multiple analyses with multiple pairs of traits, set up one sub-directory per pair of traits, e.g. `~/proj/local_reference/uc_pd` and `~/proj/local_reference/cd_pd`
+* `~/proj/data` the location for your trait data files
+* `~/proj/results` the location for result files
+
+There is a possibility that the fdr calculations can be sped up by moving the folders with the reference data (both general and local) to the temporary scratch directory at `/scratch/tmp/<username>`, but the content of that location is deleted continuously, so this is NOT a good permanent storage location. Experimentation is ongoing. 
+
+## Running an analysis
+
+Here I describe the code setup and commands to run a conditional and conjuncational fdr analysis for a single pair of traits, furthermore referred to as `UC` and `PD`. This is just example code - please adapt it to your problem (file names, directories etc.) as appropriate and run it from a `.R` script file (though it may be instructive to run the script file via copy & paste at least the first couple of times). 
+
+Set up variables pointing to directories (for portability):
+```r
+WORKDIR <- "~/proj"
+DATADIR <- file.path(WORKDIR, "data")
+RESDIR  <- file.path(WORKDIR, "results")
+FULLREF_DIR  <- file.path(WORKDIR, "general_reference")     ## original, full set
+LOCALREF_DIR <- file.path(WORKDIR, "local_reference/uc_pd") ## pre-processed set
+```
+Note that at the start, the local reference folder should be empty - the pre-processed set of reference data will be generated as part of the analysis.
+
+Load your trait data (here with assumed file names):
+```r
+trait1 <- readRDS(file.path(DATADIR, "trait_uc.rds"))
+trait2 <- readRDS(file.path(DATADIR, "trait_pd.rds"))
+```
+Note that the trait data does NOT need to be aligned etc. The only requirements are:
+
+1. Every variant needs to have a unique, non-missing rs-identifier (with the `rs` in place)
+2. Variable names are mandatory: `SNP` for the identifier, `BETA` for the effect (log-odds ratio etc.). and `PVAL` for the p-values.
+
+The second limitation is for the development version only, you will be able to specify any names in the future. The first limitation is for the current set of genetic reference data, which uses `rs`-identifiers, so this may change, too. Anyway, you can either prepare the trait files beforehand to follow the requirements, or you can fill in the necessary code here (`colnames` etc.)
+
+Specify the location of the original reference data:
+```r
+refdat_orig <- refdata_location(FULLREF_DIR)
+```
+The function used here would allow you to change things like file names or the chromosomes used for the analysis, but for our current set-up, this should work with the defaults. 
+
+Initialize the analysis object: first we create a new instance via the `$new`-method, and then we initialize the data structures with the relevant information: trait data, trait names, the location of the original reference data, and the place where to put the adjusted reference data.
+```r
+uc_pd <- cfdr_pleio$new()
+uc_pd$init_data(trait1 = trait1, trait2 = trait2, trait_names = c("UC", "PD"),
+                refdat = refdat_orig, local_refdat_path = LOCALREF_DIR)
+```
+This will take some time, especially creating the local reference data. By default, the function will keep you updated about the progress of the initialization.
+
+Set up the random prunings that we need for estimating the fdr:
+```r
+uc_pd$initialize_pruning_index(n_iter = 50, seed = 154226)
+```
+Here, `n_iter` is the number of indices to be used, and `seed` is the random seed we use to make the random pruning (and therefore the analysis) exactly replicable. We continue for now with `n_iter=50`, with ongoing experimentation for a balance between performance and estimation stability. 
+
+Calculate the conditional fdrs: because we want to calculate the conjuncational fdr, we calculate the conditional fdr in both directions.
+```r
+uc_pd$calculate_cond_fdr(fdr_trait = 1)
+uc_pd$calculate_cond_fdr(fdr_trait = 2)
+```
+Here, if you specify the trait for which to calculate the fdr (`fdr_trait`), the other trait is automatically chosen as conditioning trait (argument `cond_trait` if you want to be explicit).
+
+And we're done! All necessary non-trivial calculations have been performed. Now is a good time to save the complete analysis object for a recod of the analysis, including the chance to re-run parts of the analysis with different parameters at another time:
+```r
+saveRDS(uc_pd, file = file.path(RESDIR, "uc_pd_AnalysisObject.rds"))
+```
+
+So what about the results? These can be extracted as a data.table from the analysis object:
+```r
+uc_pd_res <- uc_pd$get_trait_results()
+uc_pd_res
+```
+You probably want to save that, too, for greater convenience in downstream analysis:
+```r
+saveRDS(uc_pd_res, file = file.path(RESDIR, "uc_pd_ResultsTable.rds"))
+```
+
+## Notes
+
+1. By default, `$init_data` filters all traits with a minor allele frequency below 0.005. No other filtering is enabled by default - as a matter of fact, most other filtering is either not implemented yet (Fihser filtering), slightly dubious (filtering for ambiguous variants) or implemented, but not documented (filtering on specified genomic ranges). Work is ongoing.
+2. `$initialize_pruning_index` will always calculate correction factors for genomic correlation; however, it's the argument `GC-correct` to `calculate_cond_fdr` which controls whether the correction is used for fdr estimation (by default yes, it is used).
+3. Documentation for `R6`-objects is not all that great: `?cfdr_pleio` shows you the object description and further down some information on the methods used above (`$init_data`, `$initialize_pruning_index`, and `$calculate_cond_fdr`), but you need to scroll down a bit.
