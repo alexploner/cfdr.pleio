@@ -121,12 +121,14 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
   #'        currently not implemented, stops with error if `TRUE`
   #' @param filter_fisher logical; perform Fisher filtering? Default `FALSE`;
   #'        currently not implemented, stops with error if `TRUE`
+  #' @param verbose logical; indicates whether to display progress; default `TRUE`
   #'
   #' @seealso \code{\link{refdat_location}}
   init_data = function(trait1, trait2, trait_names, trait_columns,
            refdat, ref_columns, local_refdat_path = "./local_refdat",
            correct_GC = TRUE, correct_SO = FALSE, exclusion_range,
-           filter_maf_min = 0.005, filter_ambiguous = FALSE, filter_fisher = FALSE
+           filter_maf_min = 0.005, filter_ambiguous = FALSE,
+           filter_fisher = FALSE, verbose = TRUE
           ) {
     ## Check that arguments have right class
     if ( !inherits(trait1, "data.table") ) trait1 <- data.table( trait1 )
@@ -138,6 +140,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     stopifnot("filter_ambiguous is not yet implemented" = !filter_ambiguous)
     stopifnot("filter_fisher is not yet implemented" = !filter_fisher)
 
+    if (verbose) cat("Preparing trait data...\n")
+
     ## Set default trait names, if missing
     if (missing(trait_names)) {
       trait_names <- c("(Trait1)", "(Trait2)")
@@ -147,6 +151,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     trait_columns <- self$trait_columns
     stopifnot("Only default ref_columns are currently accepted" = missing(ref_columns))
     ref_columns <- self$ref_columns
+
+    if (verbose) cat("Preparing reference data...\n")
 
     ## Check the target directory for the local / compressed reference data
     if ( !dir.exists(local_refdat_path) ) {
@@ -163,7 +169,9 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     stopifnot( !any(duplicated( trait2[, ..trait_columns["id"] ])) )
     ## FIXME: remove (unique?) missing identifiers ??!?
 
-    ## Now, inner join; still wart of data.table notation
+    if (verbose) cat("Aligning trait and reference data...\n")
+
+    ## Now, inner join; still wary of data.table notation
     self$trait_data <- merge(trait1[, ..trait_columns], trait2[, ..trait_columns],
                              by = "SNP", sort = FALSE, suffixes = c("1", "2"))
     self$trait_names <- trait_names
@@ -199,6 +207,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     rnk <- frank(reftab, CHR, BP, SNP, ties.method = "first")
     self$trait_data <- self$trait_data[rnk]
     reftab <- reftab[rnk]
+
+    if (verbose) cat("Filtering aligned data...\n")
 
     ## Start filtering: by default, we keep everybody
     ndx_keep <- TRUE
@@ -245,6 +255,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     reftab <- reftab[ndx_keep]
 
     ## Save the compressed local reference data
+    if (verbose) cat("Saving aligned reference data to disk...\n")
 
     ## Break the list of variants into chromosome-size bites
     ## Note, this preserves the BP-order within chromosome
@@ -256,8 +267,9 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## reference, but we check here anyway, cos why not
     ## FIXME: make the check of the reference data part of the definition
     ## somewhere around refdata_location
+    if (verbose) pb <-txtProgressBar(min = 1, max = get_chr_num(self$refdat_orig), style = 3)
     for ( i in get_chr_set(self$refdat_orig) ) {
-      cat(i, "...")
+      if (verbose) setTxtProgressBar(pb, i)
 
       ## Load the sparse matrix from file
       tmp <- readRDS( get_chrmat(self$refdat_orig, i) )
@@ -271,6 +283,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
       saveRDS(tmp, get_chrmat(self$refdat_local, i))
 
     }
+    if (verbose) close(pb)
+
     ## Add the reduced variant table, and we're done
     saveRDS(reftab, get_variants(self$refdat_local))
 
@@ -285,10 +299,12 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
   #' @param force Logical; indicate whether to override an existing index.
   #'        Default `FALSE`, which stops with a warning if the index has been
   #'        defined.
-
-  initialize_pruning_index = function(n_iter, seed, force = FALSE) {
+  #' @param verbose logical; indicates whether to display progress; default `TRUE`
+  initialize_pruning_index = function(n_iter, seed, force = FALSE, verbose = TRUE) {
 
     ## FIXME: has the object been initialized?! i.e. state check
+
+    if (verbose) cat("Preparing random pruning...\n")
 
     ## Check: does index exist? Only kill if forced to
     if (is.matrix(self$index)) {
@@ -328,16 +344,16 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     chr_set   <- get_chr_set(self$refdat_local)
     start_chr <- 1
     ## FIXME - check: is this order correct?!
+    if (verbose) cat("Starting random pruning...\n")
+    if (verbose) pb <-txtProgressBar(min = 1, max = length(chr_set), style = 3)
     for (i in chr_set) {
+      if (verbose) setTxtProgressBar(pb, i)
 
-      cat("chr =", i, "\n")
       tmp <- readRDS( get_chrmat( self$refdat_local, i))
       chr_len <- nrow(tmp)
 
       ## Loop over iterations (columns in row block)
       for (j in 1:n_iter) {
-
-        cat("\titer =", j, "\n")
         ## Generate a random permutation of the variants on the current
         ## chromosome
         ro <- sample(chr_len)
@@ -364,6 +380,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
       start_chr <- start_chr + chr_len
 
     }  ## End of loop across chromosomes
+    if (verbose) close(pb)
 
     ## Calculate a per-pruning-index correction factor for genetic correlation
     ##
@@ -379,6 +396,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## FIXME: inspect & possibly implement the "in-house" method, which takes the
     ## median over fairly non-extreme percentiles of the z-scores (instead of
     ## the z-scores) in order to calculate the correction factors
+
+    if (verbose) cat("Calculating genomic correction factors...\n")
 
     ## Load the list of annotated variants for the intergenic-flag
     vartab <- readRDS( get_variants( self$refdat_local ))
@@ -424,11 +443,15 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
   #' @param fdr_thinfac TBA
   #' @param cond_max TBA
   #' @param cond_nbrk TBA
+  #' @param verbose logical; indicates whether to display progress; default `TRUE`
   #' @returns The updated `cfdr_pleio`-onject, invisibly.
   calculate_cond_fdr = function(fdr_trait, cond_trait, smooth = TRUE,
                                 adjust = TRUE, correct_gc = TRUE,
-                                fdr_max, fdr_nbrk, fdr_thinfac, cond_max, cond_nbrk
+                                fdr_max, fdr_nbrk, fdr_thinfac, cond_max,
+                                cond_nbrk, verbose = TRUE
                               ) {
+
+    if (verbose) cat("Preparing cfdr calculation...\n")
 
     ## FIXME: check inputs, setup etc.
     if ( missing(fdr_trait) ) {
@@ -490,9 +513,10 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     fdr_table_unadj <- fdr_table
 
     ## Loop over the random prunings
+    if (verbose) cat("Starting cfdr calculation...\n")
+    if (verbose) pb <-txtProgressBar(min = 1, max = self$n_iter, style = 3)
     for (i in (1:self$n_iter)) {
-
-      cat(i, "... ", sep="")
+      if (verbose) setTxtProgressBar(pb, i)
 
       ## Extract the p-values - as vectors
       p_fdr_trait  <- ( self$trait_data[ self$index[,i], ..fdr_trait_pname ] )[[1]]
@@ -556,6 +580,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
 
         ## Returns a matrix with two rows
         ## FIXME: do we need this for the dense or sparse grid??
+        ## FIXME: really should F12 (thinned out version) instead of cumtab
+        ##        also, fix weights matrix definition below
         ci <- prop_ci(cumtab, n)
         ## Calculate the weights as 1 / squared interval lengths
         weights <- as.vector( 1/matrixStats::rowDiffs(ci)^2 )
@@ -595,6 +621,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
       ## FIXME: also sums of squares, for (imprecise) variance estimate
       fdr_table <- fdr_table + fdr
     }
+    if (verbose) close(pb)
+    if (verbose) cat("Finalizing cfdr calculations...\n")
 
     ## Average the sums
     fdr_table <- fdr_table / self$n_iter

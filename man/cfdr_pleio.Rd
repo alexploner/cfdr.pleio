@@ -125,7 +125,8 @@ Initialize an empty \code{cfdr_pleio} object
   exclusion_range,
   filter_maf_min = 0.005,
   filter_ambiguous = FALSE,
-  filter_fisher = FALSE
+  filter_fisher = FALSE,
+  verbose = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -171,6 +172,8 @@ currently not implemented, stops with error if \code{TRUE}}
 
 \item{\code{filter_fisher}}{logical; perform Fisher filtering? Default \code{FALSE};
 currently not implemented, stops with error if \code{TRUE}}
+
+\item{\code{verbose}}{logical; indicates whether to display progress; default \code{TRUE}}
 }
 \if{html}{\out{</div>}}
 }
@@ -181,7 +184,12 @@ currently not implemented, stops with error if \code{TRUE}}
 \subsection{Method \code{initialize_pruning_index()}}{
 Set up the randomly pruned index matrix for cFDR estimation
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$initialize_pruning_index(n_iter, seed, force = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{cfdr_pleio$initialize_pruning_index(
+  n_iter,
+  seed,
+  force = FALSE,
+  verbose = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -195,6 +203,8 @@ randomly generate and store a seed to make the analysis reproducible}
 \item{\code{force}}{Logical; indicate whether to override an existing index.
 Default \code{FALSE}, which stops with a warning if the index has been
 defined.}
+
+\item{\code{verbose}}{logical; indicates whether to display progress; default \code{TRUE}}
 }
 \if{html}{\out{</div>}}
 }
@@ -216,7 +226,8 @@ fdr estimate from the randomly pruned subsets of variants
   fdr_nbrk,
   fdr_thinfac,
   cond_max,
-  cond_nbrk
+  cond_nbrk,
+  verbose = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -249,6 +260,8 @@ the trait p-values; default \code{TRUE}.}
 \item{\code{cond_max}}{TBA}
 
 \item{\code{cond_nbrk}}{TBA}
+
+\item{\code{verbose}}{logical; indicates whether to display progress; default \code{TRUE}}
 }
 \if{html}{\out{</div>}}
 }
