@@ -1,16 +1,29 @@
 Package: cfdr.pleio
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Conditional and Conjunctional FDR for GWAS Data
+Version: 0.0.0.9900
 Authors@R: 
-    person(given = "Alexander",
-           family = "Ploner",
-           role = c("aut", "cre"),
-           email = "alexander.ploner@ki.se",
-           comment = c(ORCID = "0000-0002-5042-8326"))
-Description: What the package does (one paragraph).
-License: GPL (>= 3)
+    c( person(given = "Alexander",
+              family = "Ploner",
+              role = c("aut", "cre"),
+              email = "alexander.ploner@ki.se",
+              comment = c(ORCID = "0000-0002-5042-8326")),
+       person(given = "Oleksandr",
+              family = "Frei",
+              role = "aut",
+              email = "oleksandr.frei@gmail.com",
+              comment = c(URL = "https://github.com/ofrei"))
+    )
+Description: This package implements the conditional and conjunctional 
+  FDR for GWAS summary data described by Andreassen et al. (2013, 
+  https://doi.org/10.1371/journal.pgen.1003455 ). This approach offers 
+  both increased power to detect variants associated with a single trait
+  of interest via genetic correlations with a second trait (conditional 
+  FDR), and the ability to detect pleiotropic variants for two traits 
+  (conjunctional FDR). This is a re-implementation of the Matlab code 
+  available from https://github.com/precimed/pleiofdr.
+License: Internal, please do not distribute yet
 Depends: data.table, Matrix, matrixStats
-Imports: binom
+Imports: binom, akima
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
