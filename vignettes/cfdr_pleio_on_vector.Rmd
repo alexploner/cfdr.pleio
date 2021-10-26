@@ -41,7 +41,9 @@ There is a possibility that the fdr calculations can be sped up by moving the fo
 
 Here I describe the code setup and commands to run a conditional and conjuncational fdr analysis for a single pair of traits, furthermore referred to as `UC` and `PD`. This is just example code - please adapt it to your problem (file names, directories etc.) as appropriate and run it from a `.R` script file (though it may be instructive to run the script file via copy & paste at least the first couple of times). 
 
-Set up variables pointing to directories (for portability):
+#### 1. Set up variables pointing to directories
+
+This makes the analysis portable:
 ```r
 WORKDIR <- "~/proj"
 DATADIR <- file.path(WORKDIR, "data")
@@ -51,7 +53,9 @@ LOCALREF_DIR <- file.path(WORKDIR, "local_reference/uc_pd") ## pre-processed set
 ```
 Note that at the start, the local reference folder should be empty - the pre-processed set of reference data will be generated as part of the analysis.
 
-Load your trait data (here with assumed file names):
+#### 2. Load your trait data 
+
+Here with the assumed file names:
 ```r
 trait1 <- readRDS(file.path(DATADIR, "trait_uc.rds"))
 trait2 <- readRDS(file.path(DATADIR, "trait_pd.rds"))
@@ -63,13 +67,16 @@ Note that the trait data does NOT need to be aligned etc. The only requirements 
 
 The second limitation is for the development version only, you will be able to specify any names in the future. The first limitation is for the current set of genetic reference data, which uses `rs`-identifiers, so this may change, too. Anyway, you can either prepare the trait files beforehand to follow the requirements, or you can fill in the necessary code here (`colnames` etc.)
 
-Specify the location of the original reference data:
+#### 3. Specify the location of the original reference data
+
 ```r
 refdat_orig <- refdata_location(FULLREF_DIR)
 ```
 The function used here would allow you to change things like file names or the chromosomes used for the analysis, but for our current set-up, this should work with the defaults. 
 
-Initialize the analysis object: first we create a new instance via the `$new`-method, and then we initialize the data structures with the relevant information: trait data, trait names, the location of the original reference data, and the place where to put the adjusted reference data.
+#### 4. Initialize the analysis object
+
+First we create a new instance via the `$new`-method, and then we initialize the data structures with the relevant information: trait data, trait names, the location of the original reference data, and the place where to put the adjusted reference data.
 ```r
 uc_pd <- cfdr_pleio$new()
 uc_pd$init_data(trait1 = trait1, trait2 = trait2, trait_names = c("UC", "PD"),
@@ -77,18 +84,23 @@ uc_pd$init_data(trait1 = trait1, trait2 = trait2, trait_names = c("UC", "PD"),
 ```
 This will take some time, especially creating the local reference data. By default, the function will keep you updated about the progress of the initialization.
 
-Set up the random prunings that we need for estimating the fdr:
+#### 5. Set up the random prunings required for estimating the fdr
+
 ```r
 uc_pd$initialize_pruning_index(n_iter = 50, seed = 154226)
 ```
 Here, `n_iter` is the number of indices to be used, and `seed` is the random seed we use to make the random pruning (and therefore the analysis) exactly replicable. We continue for now with `n_iter=50`, with ongoing experimentation for a balance between performance and estimation stability. 
 
-Calculate the conditional fdrs: because we want to calculate the conjuncational fdr, we calculate the conditional fdr in both directions.
+#### 6. Calculate the conditional fdrs
+
+Because we want to calculate the conjuncational fdr, we calculate the conditional fdr in both directions.
 ```r
 uc_pd$calculate_cond_fdr(fdr_trait = 1)
 uc_pd$calculate_cond_fdr(fdr_trait = 2)
 ```
 Here, if you specify the trait for which to calculate the fdr (`fdr_trait`), the other trait is automatically chosen as conditioning trait (argument `cond_trait` if you want to be explicit).
+
+#### 7. Save results
 
 And we're done! All necessary non-trivial calculations have been performed. Now is a good time to save the complete analysis object for a recod of the analysis, including the chance to re-run parts of the analysis with different parameters at another time:
 ```r
@@ -107,6 +119,6 @@ saveRDS(uc_pd_res, file = file.path(RESDIR, "uc_pd_ResultsTable.rds"))
 
 ## Notes
 
-1. By default, `$init_data` filters all traits with a minor allele frequency below 0.005. No other filtering is enabled by default - as a matter of fact, most other filtering is either not implemented yet (Fihser filtering), slightly dubious (filtering for ambiguous variants) or implemented, but not documented (filtering on specified genomic ranges). Work is ongoing.
+1. By default, `$init_data` filters all traits with a minor allele frequency below 0.005. No other filtering is enabled by default - as a matter of fact, most other filtering is either not implemented yet (Fisher filtering), slightly dubious (filtering for ambiguous variants) or implemented, but not documented (filtering on specified genomic ranges). Work is ongoing.
 2. `$initialize_pruning_index` will always calculate correction factors for genomic correlation; however, it's the argument `GC-correct` to `calculate_cond_fdr` which controls whether the correction is used for fdr estimation (by default yes, it is used).
 3. Documentation for `R6`-objects is not all that great: `?cfdr_pleio` shows you the object description and further down some information on the methods used above (`$init_data`, `$initialize_pruning_index`, and `$calculate_cond_fdr`), but you need to scroll down a bit.
