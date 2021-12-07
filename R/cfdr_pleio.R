@@ -171,6 +171,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
 
     if (verbose) cat("Aligning trait and reference data...\n")
 
+    ## FIXME: drop non-shared SNPs between traits with a warning
+
     ## Now, inner join; still wary of data.table notation
     self$trait_data <- merge(trait1[, ..trait_columns], trait2[, ..trait_columns],
                              by = "SNP", sort = FALSE, suffixes = c("1", "2"))
@@ -196,6 +198,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## Only keep the variants that are part of the trait data
     ## This may be horrible, but it seems to be competitive with more
     ## obscure data.table solutions
+    ## FIXME: keep shared traits that are NOT in the reference (and be informative about it)
     setkey(self$trait_data, SNP)
     setkey(reftab, SNP)
     common_snps <- intersect(self$trait_data$SNP, reftab$SNP)
@@ -646,6 +649,8 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## p-values into the table and doing linear interpolation
     ## Note that we scale the p-values to the grid of the fdr table,
     ## which requires fiddling with bin widths and such
+    ## FIXME: should be moved to akima::bilinear for handling indices etc.
+    ##        careful: out-of-table statistics
     fdr_breaks_short <- fdr_breaks[fdr_ndx_thin]
     fdr_bin_width    <- fdr_breaks_short[2] - fdr_breaks_short[1]
     col_ndx <- self$trait_data[[fdr_trait_pname]] / fdr_bin_width
