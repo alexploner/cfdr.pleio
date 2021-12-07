@@ -698,7 +698,10 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
       warning("No conditional fdrs calculated - returning the original data")
     }
     if (ncol(ret) == 7) {
-      ret[, conj_fdr := pmax(cfdr12, cfdr21)]
+      ## Note the extra []: supposed to make the return value from this
+      ## function print *directly*, not after the second eval
+      ## See https://stackoverflow.com/questions/32988099/data-table-objects-assigned-with-from-within-function-not-printed
+      ret[, conj_fdr := pmax(cfdr12, cfdr21)][]
     }
     ret
   }
