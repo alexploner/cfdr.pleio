@@ -8,7 +8,7 @@ You can install the development version of `cfdr.pleio` like so:
 
 ``` r
 if ( !require("remotes", quietly = TRUE) ) install.packages("remotes")
-remotes::install_github("alexploner/cfdr.pleio")
+remotes::install_github("alexploner/cfdr.pleio", build_vignettes = TRUE)
 ```
 
 `cfdr.pleio` also needs a set of genetic reference data in a local directory; you can download a local copy like so:
