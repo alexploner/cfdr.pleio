@@ -1,8 +1,8 @@
 ---
-title: "Introduction to pleio.fdr"
+title: "Implementation notes for `pleio.fdr`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{introduction_to_pleio_fdr}
+  %\VignetteIndexEntry{Implementation notes for pleio.fdr}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -14,6 +14,26 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
-library(cfdr.pleio)
-```
+## 1. Background
+
+To be written
+
+## 2. Algorithm 
+
+To be written
+
+## 3. Current limitations
+
+While the current version of `cfdr.pleio` offers a complete pipeline for calculating conditional and conjunctional FDR from GWAS summary data, much improvement is possible. This is an (incomplete) list of current limitations that will be addressed in future versions:
+
+* Trait data needs to be specified with pre-defined column names
+* Pre-computed reference data is only available for European ancestry data (see however https://github.com/alexploner/genref_cfdr.pleio for code to generate pre-computed reference data from raw 1000 Genome Project data)
+* Only rs-identifiers for variants are recognized
+* A number of  pre-processing options for the summary data from the original MATLAB code, addressing e.g. sample overlap, have not been implemented yet
+* A number of adjustments for the random pruning index from the original MATLAB code have not been implemented yet 
+* Variants in the trait data that are not found in the general reference data are currently not included in the analysis. This limitation is unnecessary: we can estimate an FDR look-up table from shared variants found in the reference data, and we can use this look-up table to estimate the FDR for shared variants not found in the reference data.
+* No built-in support for condtional quantile-quantile plots or Manhanttan plots to visually assess the strength of the pleiotropy between traits and the location of variants of interest.
+* No built-in support for combining analysis results with annotation services like [FUMA](https://fuma.ctglab.nl/)
+
+There are also currently few safeguards implemented, e.g. on the order in which the analysis methods should be called; close attention to analysis as outlined in the [introduction](Introduction.html) is recommended.
+

@@ -1,124 +1,246 @@
 ---
-title: "Running `cfdr_pleio` on vector.meb.ki.se"
+title: "Introduction to `cfdr.pleio`: installation and basic usage"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Running cfdr.pleio on vector.meb.ki.se}
+  %\VignetteIndexEntry{Installation and basic usage}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  eval = TRUE, collapse = TRUE, comment = "#>"
 )
 ```
-This is a very specific set of instructions for getting the development version of package `cfdr_pleio` to run on the computational server `vector` at the Department of Medical Epidemiology (MEB) at Karolinska Institutet. This is clearly a super-local document and will be removed with wider distribution of the package, so if you don't know what any of the terms mean in the preceding sentence, you are a. not KK, and b. probably seeing this by mistake.
+The package `cfdr.pleio` implements two forms of inference to leverage and identify genetic pleiotropy between a pair of phenotypic traits: 
 
-## Installation
+* the _conditional false discovery rate_ uses the pleiotropy with a secondary, conditioning trait to improve the power to detect variants associated with the primary trait of interest;
 
-Install the package source (at time of writing `cfdr.pleio_0.0.0.9900.tar.gz`, but the version number will change) in your personal R installation on vector: copy the file over, e.g. to your home directory, and run
+* the _conjunctional false discovery rate_ identifies pleiotropic variants that are associated with both traits of interest at a quantified level of uncertainty.
 
-```r
-install.packages("~/cfdr.pleio_0.0.0.9900.tar.gz", repo = NULL)
+Both concepts were originally introduced and demonstrated by Andreassen et al. (2013). The current package is a re-implementation of a MATLAB package provided by the original research group and available from https://github.com/precimed/pleiofdr since 2019. 
+
+This vignette demonstrates the installation of `cfdr.pleio` plus the necessary reference data, as well as a basic use case for identifying pleiotropic variants associated with both height and BMI, based on data from the GIANT consortium (Wood et al. 2014, Locke et al. 2015) 
+
+
+## 1. Installation
+
+The package itself can be directly installed from github with the help of package `remotes`:
+```{r install_cfdr.pleio, eval = -2}
+if ( !require("remotes", quietly = TRUE) ) install.packages("remotes")
+remotes::install_github("alexploner/cfdr.pleio")
 ```
 
-Copy the general genetic reference data to a suitable working directory on `vector`. The reference data is a set of 23 files that were part of the tar-file `pleiopack_ibdpd_210405.tar` from April this year, and can be found in directory `pleiofdr/gen_ref/bindata` after unpacking the tar file. The set consists of one general data table describing the annotated variants  in file `all_chr_perVariant.rds`, and 22 files containing the LD-structure information for each chromosome, with the chromosome number in the name; the total size of all files combined is ca. 3GB. 
+The algorithm implemented by `cfdr.pleio` requires a reference data set that describes the local LD structure for a reasonably large proportion of the known variants for the human genome. How this reference data can be constructed from scratch is described [elsewhere](Implementation.html) - for this vignette, we will simply download a pre-computed reference data set. 
 
-Note that this is the set with the complete information extracted from the 1000 genome project. This is not to be confused with other sub-directories in the tar file that contain file sets with the same names: these have already been pre-processed for working with the old UC/CD/PD data, and are substantially smaller. 
+Note that this general reference data set is necessary for `cfdr.pleio` to work. As it takes up ca. 3 GB of space, it is generally a good idea to store it in a safe place, outside and independently of any specific project where you use `cfdr.pleio` (as you probably don't want to download it repeatedly). Here, we use a suggestive directory name under the user's home directory, but you should choose whatever suits you:
 
-From here, I assume the following directory structure:
-
-* `~/proj`: the main project folder
-* `~/proj/general_reference`: the general reference data as described above
-* `~/proj/local_reference`: a place for the local, pre-processed reference data; if you are running multiple analyses with multiple pairs of traits, set up one sub-directory per pair of traits, e.g. `~/proj/local_reference/uc_pd` and `~/proj/local_reference/cd_pd`
-* `~/proj/data` the location for your trait data files
-* `~/proj/results` the location for result files
-
-There is a possibility that the fdr calculations can be sped up by moving the folders with the reference data (both general and local) to the temporary scratch directory at `/scratch/tmp/<username>`, but the content of that location is deleted continuously, so this is NOT a good permanent storage location. Experimentation is ongoing. 
-
-## Running an analysis
-
-Here I describe the code setup and commands to run a conditional and conjuncational fdr analysis for a single pair of traits, furthermore referred to as `UC` and `PD`. This is just example code - please adapt it to your problem (file names, directories etc.) as appropriate and run it from a `.R` script file (though it may be instructive to run the script file via copy & paste at least the first couple of times). 
-
-#### 1. Set up variables pointing to directories
-
-This makes the analysis portable:
-```r
-WORKDIR <- "~/proj"
-DATADIR <- file.path(WORKDIR, "data")
-RESDIR  <- file.path(WORKDIR, "results")
-FULLREF_DIR  <- file.path(WORKDIR, "general_reference")     ## original, full set
-LOCALREF_DIR <- file.path(WORKDIR, "local_reference/uc_pd") ## pre-processed set
-```
-Note that at the start, the local reference folder should be empty - the pre-processed set of reference data will be generated as part of the analysis.
-
-#### 2. Load your trait data 
-
-Here with the assumed file names:
-```r
-trait1 <- readRDS(file.path(DATADIR, "trait_uc.rds"))
-trait2 <- readRDS(file.path(DATADIR, "trait_pd.rds"))
-```
-Note that the trait data does NOT need to be aligned etc. The only requirements are:
-
-1. Every variant needs to have a unique, non-missing rs-identifier (with the `rs` in place)
-2. Variable names are mandatory: `SNP` for the identifier, `BETA` for the effect (log-odds ratio etc.). and `PVAL` for the p-values.
-
-The second limitation is for the development version only, you will be able to specify any names in the future. The first limitation is for the current set of genetic reference data, which uses `rs`-identifiers, so this may change, too. Anyway, you can either prepare the trait files beforehand to follow the requirements, or you can fill in the necessary code here (`colnames` etc.)
-
-#### 3. Specify the location of the original reference data
-
-```r
-refdat_orig <- refdata_location(FULLREF_DIR)
-```
-The function used here would allow you to change things like file names or the chromosomes used for the analysis, but for our current set-up, this should work with the defaults. 
-
-#### 4. Initialize the analysis object
-
-First we create a new instance via the `$new`-method, and then we initialize the data structures with the relevant information: trait data, trait names, the location of the original reference data, and the place where to put the adjusted reference data.
-```r
-uc_pd <- cfdr_pleio$new()
-uc_pd$init_data(trait1 = trait1, trait2 = trait2, trait_names = c("UC", "PD"),
-                refdat = refdat_orig, local_refdat_path = LOCALREF_DIR)
-```
-This will take some time, especially creating the local reference data. By default, the function will keep you updated about the progress of the initialization.
-
-#### 5. Set up the random prunings required for estimating the fdr
-
-```r
-uc_pd$initialize_pruning_index(n_iter = 50, seed = 154226)
-```
-Here, `n_iter` is the number of indices to be used, and `seed` is the random seed we use to make the random pruning (and therefore the analysis) exactly replicable. We continue for now with `n_iter=50`, with ongoing experimentation for a balance between performance and estimation stability. 
-
-#### 6. Calculate the conditional fdrs
-
-Because we want to calculate the conjuncational fdr, we calculate the conditional fdr in both directions.
-```r
-uc_pd$calculate_cond_fdr(fdr_trait = 1)
-uc_pd$calculate_cond_fdr(fdr_trait = 2)
-```
-Here, if you specify the trait for which to calculate the fdr (`fdr_trait`), the other trait is automatically chosen as conditioning trait (argument `cond_trait` if you want to be explicit).
-
-#### 7. Save results
-
-And we're done! All necessary non-trivial calculations have been performed. Now is a good time to save the complete analysis object for a recod of the analysis, including the chance to re-run parts of the analysis with different parameters at another time:
-```r
-saveRDS(uc_pd, file = file.path(RESDIR, "uc_pd_AnalysisObject.rds"))
+```{r download_ref, echo=-2, eval=-4}
+REF_DIR  <- "~/proj/Reference"
+if ( !dir.exists(REF_DIR) ) dir.create(REF_DIR, recursive = TRUE)
+zip_file <- paste(REF_DIR, "genref.zip", sep = "/")
+download.file("https://zenodo.org/record/5750318/files/genref.zip",
+              destfile = zip_file)
 ```
 
-So what about the results? These can be extracted as a data.table from the analysis object:
-```r
-uc_pd_res <- uc_pd$get_trait_results()
-uc_pd_res
+Unzip the file and check its contents:
+```{r unzip_ref}
+unzip(zip_file, exdir = REF_DIR)
+dir(REF_DIR)
 ```
-You probably want to save that, too, for greater convenience in downstream analysis:
-```r
-saveRDS(uc_pd_res, file = file.path(RESDIR, "uc_pd_ResultsTable.rds"))
+You should see 23 `.rda`-files, one containing the list of all reference variants, and 22 others describing the LD structure for each pair of non-sex chromosomes. If this is the case, you can remove the original zip file using `file.remove(zip_file)`. 
+
+(And of course, if you prefer to download & unzip the reference data manually via your browser, or from the command line using `wget`/`curl`, that is just fine - just keep track of the directory where the `.rda` files are stored.)
+
+Congratulations! You now have installed everything required to run a local condFdr- or conjFdr analysis for the pair of traits of your choice.
+
+## 2. A simple example: BMI and height
+
+Using data released by the GIANT consortium, we want to use our `cfdr.pleio`-installation to answer two questions:
+
+1. Conditioning on height, how many variants are associated with BMI at a conditional false discovery rate of $condFdr<0.001$ or less, compared to the conventional genome-wide significance threshold of $p < 5E-8$?
+
+2. How many variants can we expect to be associated with both height and BMI, at a conjunctional false discovery rate threshold of $conjFdr < 0.01$? 
+
+(Note this data was chosen because it is reasonably sized, has a strong (maybe too strong?) genetic signal, and can be directly downloaded, not necessarily because it is especially suited for this kind of analysis.)
+
+### 2.1 Data download 
+
+Let's set up a project directory. As mentioned above, this is best separate from the general reference data we just downloaded above. For this example, I choose
+
+```{r set_ex_dir, echo = -2}
+DATA_DIR = "~/proj/BMI_height"
+if ( !dir.exists(DATA_DIR) ) dir.create(DATA_DIR, recursive = TRUE)
 ```
 
-## Notes
+Now let's download the example data. Again, you can absolutely do this outside of R in whatever manner suits you best. The R code here just tries to do it with a bit of style - define the addresses of the data files, define some readable file names for the project directory, and download the data only if these files do not exist already:
+```{r download_ex}
+URL <- c(BMI = "https://portals.broadinstitute.org/collaboration/giant/images/1/15/SNP_gwas_mc_merge_nogc.tbl.uniq.gz",
+         Height = "https://portals.broadinstitute.org/collaboration/giant/images/0/01/GIANT_HEIGHT_Wood_et_al_2014_publicrelease_HapMapCeuFreq.txt.gz")
+data_files  <- paste(DATA_DIR, c("GIANT_BMI_CEU.gz", "GIANT_Height_CEU.gz"), sep = "/")
+names(data_files) <- names(URL)
+dl_if_req <- function(url, file)  if (!file.exists(file)) download.file(url, destfile = file)
+mapply(dl_if_req, URL, data_files)
+```
 
-1. By default, `$init_data` filters all traits with a minor allele frequency below 0.005. No other filtering is enabled by default - as a matter of fact, most other filtering is either not implemented yet (Fisher filtering), slightly dubious (filtering for ambiguous variants) or implemented, but not documented (filtering on specified genomic ranges). Work is ongoing.
-2. `$initialize_pruning_index` will always calculate correction factors for genomic correlation; however, it's the argument `GC-correct` to `calculate_cond_fdr` which controls whether the correction is used for fdr estimation (by default yes, it is used).
-3. Documentation for `R6`-objects is not all that great: `?cfdr_pleio` shows you the object description and further down some information on the methods used above (`$init_data`, `$initialize_pruning_index`, and `$calculate_cond_fdr`), but you need to scroll down a bit.
+### 2.2 Data preparation
+
+Next, we read the data into R and do some preparation for feeding them into `cfdr.pleio`, which at this point is still strict about expected column names (see the section on [limitations](Introduction.html)).
+
+We use `data.table` for import: not only has the package a fast function for reading from compressed text files, `cfdr.pleio` also uses its data format for internal storage, so this is rather efficient.
+```{r load_data}
+library(data.table)
+BMI    <- fread(data_files["BMI"])
+BMI
+Height <- fread(data_files["Height"])
+Height
+```
+We see that both data sets have the same very basic format, although with slightly different column names, and about the same number of variants. 
+
+A valid trait data set for `cfdr.pleio` is required to have three columns with the following names and content:
+
+1. `SNP`: the rs-identifier for the variant,
+2. `BETA`: the estimated effect size for the variant from the underlying regression model,
+3. `PVAL`: the corresponding p-value for the effect estimate.
+
+All other variables will be ignored. 
+
+So let's fix the variable names:
+```{r fix_data}
+colnames(BMI)[c(1,5,7)] <- c("SNP", "BETA", "PVAL")
+head(BMI)
+colnames(Height)[c(1,5,7)] <- c("SNP", "BETA", "PVAL")
+head(Height)
+```
+
+At this point, we could do some filtering of variants, e.g. based on quality score, major allele frequency or sample size. Our example data has already been filtered quite strictly for the original analysis, and does not provide much other information to go on, so we skip this. Whether or not this is necessary will be a project-specific judgment call. 
+
+Let's have a short look at the imported data: how many variants do achieve conventional genome-wide significance for BMI (related to Question 1 above)?
+
+```{r desc_data1}
+table(BMI$PVAL < 5E-8)
+proportions( table(BMI$PVAL < 5E-8) )
+```
+We find $n=1,860$ variants, corresponding to $n=77$ well-separated loci reported by Locke et al. for the same material.
+
+In comparison, we find an astonishing $n=26,593$ variants associated with height, corresponding to 1% of all variants included:
+```{r, desc_data2}
+table(Height$PVAL < 5E-8)
+proportions( table(Height$PVAL < 5E-8) )
+```
+Wood et al. report for their LD-conditional analysis a total of $n=697$ variants, corresponding to $n=423$ distinct loci; see their discussion of the highly poylgenic nature of their findings for details.
+
+### 2.3 Running the analysis 
+
+We have now everything in place to start the actual analysis. We start by loading the package:
+```{r load_cfdr.pleio}
+library(cfdr.pleio)
+```
+
+Then, we create a new analysis object: 
+```{r new_analysis}
+BMI_Height <- cfdr_pleio$new()
+```
+This object is initially empty, and the rest of the analysis proceeds by calling the appropriate methods as demonstrated below. This is slightly different from most other R packages, in that `cfdr.pleio` is based on the R6-class system; see the [vignette on implementation](Implementation.html) for some background. 
+
+#### 2.3.1 Initialize the data
+
+The first step is to initialize the empty object with the necessary information to run the analysis:
+
+1. the data objects holding the summary statistics for the two traits of interest (`BMI` and `Height` in this example),
+2. the location of the downloaded general reference data (in our example, this is the directory stored as `REF_DIR` above),
+3. a storage location for a working version of the reference data specific for the data at hand.
+
+The distinction between the latter two points is important: the _general_ reference data that we have downloaded before is part of the `cfdr.pleio` setup, and stays the same regardless of the project where `cfdr.pleio` is applied. The _specific_ reference data is generated during the next step of the analysis, and is essentially a reduced version of the reference data matched to the project data; for reasons of memory-efficiency, this reduced version is also saved to disk, but should generally be stored as part of the project folder. For our example:
+
+```{r init_data, echo = -(1:2)}
+LOCALREF_DIR = paste(DATA_DIR, "localref", sep = "/")
+tmp <- if ( dir.exists(LOCALREF_DIR) ) file.remove(LOCALREF_DIR)
+BMI_Height$init_data(trait1 = BMI, trait2 = Height, 
+                     trait_names = c("BMI", "Height"),
+                     refdat = refdata_location(REF_DIR), 
+                     local_refdat_path = "~/proj/BMI_height/localref", verbose = FALSE)
+```
+Note that `refdata_location` is a helper function that checks some defaults for the general reference data. The process of generating the local reference data itself is reasonably time-consuming.
+
+(`verbose=FALSE` switches off progress indicators, which is fine for this document; generally, the default `verbose=TRUE` will be more helpful.)
+
+#### 2.3.2 Initialize the pruning index
+
+The second step is to initialize the random pruning index. The motivation for this is mentioned in passing in Andreassen et al., and explained in some more detail in the [implementation vignette](Implementation.html), but essentially, the conditional fdr should be estimated from variants that are approximately independent. This is done by selecting random variants from the set of variants shared between the two traits, and systematically discarding variants that are within a specified LD range from the selected ones; this process generates an approximately independent subset of variants. In order to minimize the effect of the random selection, this is repeated a reasonably large number of times with different random selections. For our example, I have chosen $n=50$ iterations:
+
+```{r set_pruning_index}
+BMI_Height$initialize_pruning_index(n_iter = 50, seed = 154226, verbose = FALSE)
+```
+Note the random seed that makes this part replicable. 
+
+#### 2.3.3 Calculate FDRs
+
+In the third and final step, we combine the specified data and the random pruning index to calculate the conditional and conjunctional FDR, as required. In our example, we want to specifically know the conditional FDR for an association with the trait BMI, conditional on the trait height. This is done by specifying which of the traits is the fdr-trait (i.e. the primary trait of interest) and which is the secondary, conditioning trait; as BMI is the first trait, we do this by
+```{r cfdr12}
+BMI_Height$calculate_cond_fdr(fdr_trait = 1, verbose = FALSE)
+```
+Equivalently, we could also have set `cond_trait=2` in this call. 
+
+In order to calculate the conjunctional fdr, we need to repeat this calculation with the conditioning reversed, i.e. we also need to calculate the conditional FDR for height, conditional on BMI:
+```{r cfdr21}
+BMI_Height$calculate_cond_fdr(fdr_trait = 2, verbose = FALSE)
+```
+
+At this point, both conditional FDRs and the conjunctional FDR have been calculated and stored within the analysis object, and can be extracted as a `data.table`:
+```{r extract_res_table}
+BMI_Height_res <- BMI_Height$get_trait_results()
+BMI_Height_res
+```
+This object just returns the original data specified for the two traits, plus all new FDR columns calculated during the analysis (here: three, the maximum). 
+
+#### 2.3.4 Save results
+
+A good idea at this point is to save the results for further processing. The main result with all settings, seeds etc. is of course the full analysis object, but it can be convenient to also just save the final `data.table` for further processing:
+```{r save_results}
+saveRDS(BMI_Height, file = paste(DATA_DIR, "BMI_Height_AnalysisObject.rds", sep="/"))
+saveRDS(BMI_Height_res, file = paste(DATA_DIR, "BMI_Height_ResultsTable.rds", sep="/"))
+```
+
+### 2.4 Interpreting the results
+
+Very briefly for now. 
+
+#### 2.4.1 Question 1
+
+Let's look at the number of variants that have a conditional FDR for BMI conditioned on height: 
+```{r count_variants_12}
+table(BMI_Height_res$cfdr12 < 0.001)
+```
+Compared to the genome-wide significance, we find ca. 50% more variants at this conservative FDR threshold. 
+
+We can also reverse this question: what is the largest conditional FDR for an association with conditional on height among the variants that are (unconditionally) genome-wide significant for BMI? 
+```{r count_variants_12b}
+summary(subset(BMI_Height_res, LOG10PVAL1 > -log10(5E-8))$cfdr12)
+```
+The maximum conditional FDR for BMI in this set is just under $0.00012$, which is extremely conservative; we can relax this by almost an order of magnitude to a threshold of $0.001$, increase power by ca 50%, and still achieve very conservative control of the FDR among the identified variants. 
+
+#### 2.4.2 Question 2
+
+We find that $n=892$ variants appear to be associate with both BMI and height at a conjunctional FDR level of 0.01 or lower:
+```{r count_variants_conj}
+table(BMI_Height_res$conj_fdr < 0.01)
+```
+
+Let us look at this overlap: we plot the original p-values for the two traits for this subset of variants:
+```{r desc_conj, out.width="90%", fig.align="center", fig.width=10, fig.height=10}
+plot( LOG10PVAL2 ~ LOG10PVAL1, data = BMI_Height_res[conj_fdr < 0.01], 
+      xlab = "-log10(p) for BMI", ylab = "-log10(p) for height",
+      xlim = c(0,50), ylim = c(0, 50), pch=19, col = gray(0.4, 0.25))
+abline(h = -log10(5E-8), v = -log10(5E-8), lty=3)
+```
+
+Each plot symbol represents one of the $n=892$ pleiotropic variants, and the dotted lines indicate the usual genome-wide cutoff for original p-values for each trait. We find that the conjunctional FDR finds a much larger overlap than the simple intersection of genome-wide significant variants for each trait (as seen in the upper right quadrant only); also, that the gain in variants is not symmetric: more variants with weaker unconditional evidence for an associations with BMI are included (upper left quadrant) than for height (lower right quadrant), which is not all that surprising, given the very wide-spread association with height.
+
+## References
+
+1. Andreassen OA, Djurovic S, Thompson WK, et al. Improved detection of common variants associated with schizophrenia by leveraging pleiotropy with cardiovascular-disease risk factors. Am J Hum Genet. 2013;92(2):197-209. doi:10.1016/j.ajhg.2013.01.001
+2. Wood AR, Esko T, Yang J, et al. Defining the role of common variation in the genomic and biological architecture of adult human height. Nat Genet. 2014;46(11):1173-1186. doi:10.1038/ng.3097
+3. Locke AE, Kahali B, Berndt SI, et al. Genetic studies of body mass index yield new insights for obesity biology. Nature. 2015;518(7538):197-206. doi:10.1038/nature14177
+
+
