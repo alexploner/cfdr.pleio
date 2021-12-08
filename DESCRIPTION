@@ -1,6 +1,6 @@
 Package: cfdr.pleio
 Title: Conditional and Conjunctional FDR for GWAS Data
-Version: 0.0.0.9900
+Version: 0.0.0.9100
 Authors@R: 
     c( person(given = "Alexander",
               family = "Ploner",
@@ -11,7 +11,19 @@ Authors@R:
               family = "Frei",
               role = "aut",
               email = "oleksandr.frei@gmail.com",
-              comment = c(URL = "https://github.com/ofrei"))
+              comment = c(URL = "https://github.com/ofrei")),
+       person(given = "W.Q.",
+              family = "CHENG",
+              role = "ctb",
+              comment = c(URL = "https://github.com/WQ-CHENG")),  
+       person(given = "f.",
+              family = "krull",
+              role = "ctb",
+              comment = c(URL = "https://github.com/f-krull")),                
+       person(given = "Francesco",
+              family = "Bettella",
+              role = "ctb",
+              comment = c(URL = "https://github.com/scimerc"))               
     )
 Description: This package implements the conditional and conjunctional 
   FDR for GWAS summary data described by Andreassen et al. (2013, 
@@ -19,15 +31,15 @@ Description: This package implements the conditional and conjunctional
   both increased power to detect variants associated with a single trait
   of interest via genetic correlations with a second trait (conditional 
   FDR), and the ability to detect pleiotropic variants for two traits 
-  (conjunctional FDR). This is a re-implementation of the Matlab code 
-  available from https://github.com/precimed/pleiofdr.
-License: Internal, please do not distribute yet
+  (conjunctional FDR). This is a re-implementation of the general algorithm
+  based on the MATLAB code available from https://github.com/precimed/pleiofdr.
+License: GPL-3
 Depends: data.table, Matrix, matrixStats
 Imports: binom, akima
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 Suggests: 
     rmarkdown,
     knitr
