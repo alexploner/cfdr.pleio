@@ -44,7 +44,7 @@
 #' wm <- matrix(runif(nr*nc), nrow = nr)
 #' sm <- sparseSmooth2d(vm, wm)
 #' @export
-sparseSmooth2d <- function(values, weights, smooth_param = c(10, 10), weight_thres = 0.001)
+sparseSmooth2d <- function(values, weights, smooth_param = c(10, 10), weight_thresh = 0.001)
 {
   nr <- nrow(values)
   nc <- ncol(values)
@@ -113,7 +113,7 @@ sparseSmooth2d <- function(values, weights, smooth_param = c(10, 10), weight_thr
   ## This is just the squared/mixed operator matrix with the (truncated)
   ## weights added along the diagonal
   ## Still a matrix of size nr*nc x nr*nc
-  H <- LtL + bandSparse( n = nr*nc, k = 0, diagonals = list(pmax(weights, weight_thres)) )
+  H <- LtL + bandSparse( n = nr*nc, k = 0, diagonals = list(pmax(weights, weight_thresh)) )
   ## RHS are just the weighted values
   g <- values * weights
   ## Solve it

@@ -99,4 +99,5 @@ sigmoid <- function(x, d = dim(x), dn = dimnames(x)) {
 p2z <- function(p) abs( qnorm(0.5*10^(-p)) )
 
 #' @rdname p2z
+#' @export
 z2p <- function(z) -log10( 2*pnorm(-abs(z)) )

@@ -4,7 +4,12 @@
 \alias{sparseSmooth2d}
 \title{Smoothing of values on a 2D grid}
 \usage{
-sparseSmooth2d(values, weights, smooth_param = c(10, 10), weight_thres = 0.001)
+sparseSmooth2d(
+  values,
+  weights,
+  smooth_param = c(10, 10),
+  weight_thresh = 0.001
+)
 }
 \arguments{
 \item{values}{an n x p matrix of values on a grid}

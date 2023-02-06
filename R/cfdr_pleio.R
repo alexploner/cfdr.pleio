@@ -1,5 +1,13 @@
 ## The master file for package cfdr.pleio
 
+#' @import R6
+#' @import Matrix
+#' @import data.table
+#' @import matrixStats
+#' @importFrom stats pnorm qnorm
+#' @importFrom interp bilinear
+NULL
+
 #' A class for calculating conditional & conjunctional fdr for pleiotropy analysis
 #'
 #' @description A class that captures all data for calculating the conditional
@@ -9,6 +17,7 @@
 #' @examples
 #' cfdr_pleio$new()
 #' @export
+#' @import R6
 cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
 
   #' @field trait_data Genetic data for both traits, aligned with each other and
@@ -123,7 +132,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
   #'        currently not implemented, stops with error if `TRUE`
   #' @param verbose logical; indicates whether to display progress; default `TRUE`
   #'
-  #' @seealso \code{\link{refdat_location}}
+  #' @seealso \code{\link{refdata_location}}
   init_data = function(trait1, trait2, trait_names, trait_columns,
            refdat, ref_columns, local_refdat_path = "./local_refdat",
            correct_GC = TRUE, correct_SO = FALSE, exclusion_range,
@@ -656,7 +665,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## p-values into the table and doing linear interpolation
     ## Note that we scale the p-values to the grid of the fdr table,
     ## which requires fiddling with bin widths and such
-    ## FIXME: should be moved to akima::bilinear for handling indices etc.
+    ## FIXME: should be moved to interp::bilinear for handling indices etc.
     ##        careful: out-of-table statistics
     fdr_breaks_short <- fdr_breaks[fdr_ndx_thin]
     fdr_bin_width    <- fdr_breaks_short[2] - fdr_breaks_short[1]
@@ -668,7 +677,7 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     row_ndx <- pmax(1, pmin(nrow(fdr_table), 1 + row_ndx))
 
     ## Interpolate & add to main data element
-    fdr_variants <- akima::bilinear(1:nrow(fdr_table), 1:ncol(fdr_table), fdr_table, row_ndx, col_ndx)$z
+    fdr_variants <- interp::bilinear(1:nrow(fdr_table), 1:ncol(fdr_table), fdr_table, row_ndx, col_ndx)$z
     ##self$data <- self$data[, fdr12 := fdr_variants]
 
     ## Internal information: the final lookup-table, both adjusted and

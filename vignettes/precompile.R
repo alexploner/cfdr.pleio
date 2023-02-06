@@ -3,7 +3,7 @@
 #  b. downloads non-trivial amounts of data from other people's server
 #
 # This hack avoids the issues for package users while maintaining
-# standard tool chain for buildding the packe with vignettes
+# standard tool chain for building the package with vignettes
 #
 # Must manually move image files from cfdr.pleio/figure to
 #  cfd.pleio/vignettes/figure after knit

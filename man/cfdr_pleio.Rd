@@ -19,7 +19,7 @@ analysis flow
 cfdr_pleio$new()
 }
 \seealso{
-\code{\link{refdat_location}}
+\code{\link{refdata_location}}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -31,11 +31,13 @@ the reference data}
 
 \item{\code{trait_columns}}{Named character vector of length three, listing the
 names of the required columns in the input trait data. These are
-colums are:\preformatted{   * `id`: unique variant identifiers; default `"SNP"` (character)
+colums are:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   * `id`: unique variant identifiers; default `"SNP"` (character)
    * `beta`: variant-specific effect sizes (log-odds ratios or similar);
              default `"BETA"` (numeric)
    * `pval`: p-value corresponding to `beta`; default `"PVAL"` (numeric).
-}}
+}\if{html}{\out{</div>}}}
 
 \item{\code{refdat_orig}}{An object of class \code{refdata_location} that points at the
 original (uncompressed) genetic reference data}
@@ -46,7 +48,9 @@ analysis}
 
 \item{\code{ref_columns}}{Named character vector of length seven, listing the
 names of the required columns in the input trait data. These columns
-are:\preformatted{   * `id`: unique variant identifier; default `"SNP"` (character)
+are:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   * `id`: unique variant identifier; default `"SNP"` (character)
    * `chr`: variant chromosome number; default `"CHR"` (numeric)
    * `bp`: variant base pair position; default "`BP`" (numeric)
    * `a1`, `a2`:  major and minor alleles at position; default `"A1"`
@@ -54,7 +58,7 @@ are:\preformatted{   * `id`: unique variant identifier; default `"SNP"` (charact
    * `maf`: minor allele frequency; default `"MAF"` (numeric)
    * `interg`: flag indicating whether the variant is intergenic (1)
                or not (0); default `"INTERGENIC"` (numeric 0/1)
-}}
+}\if{html}{\out{</div>}}}
 
 \item{\code{index}}{A logical matrix of size (number of variants) x (number of iterations)
 This is the container that holds the multiple randomly pruned subsets
@@ -68,16 +72,20 @@ for estimating the cFDR. Default \code{NULL}(i.e. uninitialized)}
 before starting random pruning of data. Default \code{NULL}(i.e. uninitialized)}
 
 \item{\code{gc_correct}}{List; either NULL, i.e. not initialized, or with two
-elements:\preformatted{                 * `corrfac`: a numerical vector of length two, the actual
+elements:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{                 * `corrfac`: a numerical vector of length two, the actual
                  correction factors applied
                  * `corrfac_all`: a numerical matrix with two columns and
                  `n_iter` rows, which holds the per-pruning-index correction
                  factors
-}}
+}\if{html}{\out{</div>}}}
 
 \item{\code{fdr_grid_par}}{Named character vector of length 5, listing the
 default values for setting up the grid over which the conditional
-fdr is calculated\preformatted{   * `fdr_max`: maximum value for the fdr-trait axis of the grid -
+fdr is calculated
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   * `fdr_max`: maximum value for the fdr-trait axis of the grid -
       larger values will be aggregated in a catch-all category; default 10
    * `fdr_nbrk`: number of breaks along the fdr-trait axis, from zero
       to `fdr_trait_max`; default 1001
@@ -88,7 +96,7 @@ fdr is calculated\preformatted{   * `fdr_max`: maximum value for the fdr-trait a
    default 3
    * `cond_nbrk`: number of breaks along the conditioning trait
    axis, from zero to `cond_trait_max`; defaults to 31.
-}}
+}\if{html}{\out{</div>}}}
 
 \item{\code{cfdr12}}{Estimated fdr for trait1 conditional on trait2; a list.}
 
@@ -99,16 +107,16 @@ fdr is calculated\preformatted{   * `fdr_max`: maximum value for the fdr-trait a
 \section{Methods}{
 \subsection{Public methods}{
 \itemize{
-\item \href{#method-init_data}{\code{cfdr_pleio$init_data()}}
-\item \href{#method-initialize_pruning_index}{\code{cfdr_pleio$initialize_pruning_index()}}
-\item \href{#method-calculate_cond_fdr}{\code{cfdr_pleio$calculate_cond_fdr()}}
-\item \href{#method-get_trait_results}{\code{cfdr_pleio$get_trait_results()}}
-\item \href{#method-clone}{\code{cfdr_pleio$clone()}}
+\item \href{#method-cfdr_pleio-init_data}{\code{cfdr_pleio$init_data()}}
+\item \href{#method-cfdr_pleio-initialize_pruning_index}{\code{cfdr_pleio$initialize_pruning_index()}}
+\item \href{#method-cfdr_pleio-calculate_cond_fdr}{\code{cfdr_pleio$calculate_cond_fdr()}}
+\item \href{#method-cfdr_pleio-get_trait_results}{\code{cfdr_pleio$get_trait_results()}}
+\item \href{#method-cfdr_pleio-clone}{\code{cfdr_pleio$clone()}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-init_data"></a>}}
-\if{latex}{\out{\hypertarget{method-init_data}{}}}
+\if{html}{\out{<a id="method-cfdr_pleio-init_data"></a>}}
+\if{latex}{\out{\hypertarget{method-cfdr_pleio-init_data}{}}}
 \subsection{Method \code{init_data()}}{
 Initialize an empty \code{cfdr_pleio} object
 \subsection{Usage}{
@@ -179,8 +187,8 @@ currently not implemented, stops with error if \code{TRUE}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-initialize_pruning_index"></a>}}
-\if{latex}{\out{\hypertarget{method-initialize_pruning_index}{}}}
+\if{html}{\out{<a id="method-cfdr_pleio-initialize_pruning_index"></a>}}
+\if{latex}{\out{\hypertarget{method-cfdr_pleio-initialize_pruning_index}{}}}
 \subsection{Method \code{initialize_pruning_index()}}{
 Set up the randomly pruned index matrix for cFDR estimation
 \subsection{Usage}{
@@ -210,8 +218,8 @@ defined.}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-calculate_cond_fdr"></a>}}
-\if{latex}{\out{\hypertarget{method-calculate_cond_fdr}{}}}
+\if{html}{\out{<a id="method-cfdr_pleio-calculate_cond_fdr"></a>}}
+\if{latex}{\out{\hypertarget{method-cfdr_pleio-calculate_cond_fdr}{}}}
 \subsection{Method \code{calculate_cond_fdr()}}{
 This is the workhorse function that calculates the conditional
 fdr estimate from the randomly pruned subsets of variants
@@ -267,8 +275,8 @@ the trait p-values; default \code{TRUE}.}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-get_trait_results"></a>}}
-\if{latex}{\out{\hypertarget{method-get_trait_results}{}}}
+\if{html}{\out{<a id="method-cfdr_pleio-get_trait_results"></a>}}
+\if{latex}{\out{\hypertarget{method-cfdr_pleio-get_trait_results}{}}}
 \subsection{Method \code{get_trait_results()}}{
 This function returns the original trait data as a data.table
 and adds any conditional fdrs that have been calculated as
@@ -280,8 +288,8 @@ the function also adds the conjunctional fdr.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-clone"></a>}}
-\if{latex}{\out{\hypertarget{method-clone}{}}}
+\if{html}{\out{<a id="method-cfdr_pleio-clone"></a>}}
+\if{latex}{\out{\hypertarget{method-cfdr_pleio-clone}{}}}
 \subsection{Method \code{clone()}}{
 The objects of this class are cloneable with this method.
 \subsection{Usage}{
