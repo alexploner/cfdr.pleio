@@ -135,6 +135,14 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     if ( !inherits(trait2, "data.table") ) trait2 <- data.table( trait2 )
     stopifnot( inherits(refdat, "refdata_location") )
 
+    ## Check format of exclusion ranges
+    if (!missing(exclusion_range)) {
+      stopifnot( is.data.frame( exclusion_range ) )
+      stopifnot( ncol(exclusion_range) == 3 )
+      stopifnot( all( colnames(exclusion_range) == c("chr", "from", "to") ) )
+      stopifnot( all ( apply(exclusion_range, 2, is.numeric) ) )
+    }
+
     ## Check for not yet implemented features
     stopifnot("correct_SO is not yet implemented" = !correct_SO)
     stopifnot("filter_ambiguous is not yet implemented" = !filter_ambiguous)
@@ -221,14 +229,13 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     }
 
     ## Specified exclusions here
-    ## FIXME: structure should have been tested above already
     if ( !missing(exclusion_range) ) {
       for (i in 1:nrow(exclusion_range)) {
         ndx_keep <- ndx_keep & (
         ## Keep if....
-          (reftab$CHR != exclusion_range$chr) |  ## ... on wrong chromosome
-          (reftab$BP < exclusion_range$from)  |  ## ... before the range
-          (reftab$BP > exclusion_range$to)       ## ... after the range
+          (reftab$CHR != exclusion_range$chr[i]) |  ## ... on wrong chromosome
+          (reftab$BP < exclusion_range$from[i])  |  ## ... before the range
+          (reftab$BP > exclusion_range$to[i])       ## ... after the range
         )
       }
     }
