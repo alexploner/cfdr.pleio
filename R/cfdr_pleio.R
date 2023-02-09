@@ -503,17 +503,17 @@ cfdr_pleio <- R6::R6Class("cfdr_pleio", public = list(
     ## FIXME: warning /check if already calculated fdr exists?
 
     ## Defaults; currently fixed
-    stopifnot("fdr_max currently fixed at default" = missing(fdr_max))
-    stopifnot("fdr_nbrk currently fixed at default" = missing(fdr_nbrk))
-    stopifnot("fdr_thinfac currently fixed at default" = missing(fdr_thinfac))
-    stopifnot("cond_max currently fixed at default" = missing(cond_max))
-    stopifnot("cond_nbrk currently fixed at default" = missing(cond_nbrk))
+    #stopifnot("fdr_max currently fixed at default" = missing(fdr_max))
+    #stopifnot("fdr_nbrk currently fixed at default" = missing(fdr_nbrk))
+    #stopifnot("fdr_thinfac currently fixed at default" = missing(fdr_thinfac))
+    #stopifnot("cond_max currently fixed at default" = missing(cond_max))
+    #stopifnot("cond_nbrk currently fixed at default" = missing(cond_nbrk))
 
-    fdr_max <- self$fdr_grid_par["fdr_max"]
-    fdr_nbrk <- self$fdr_grid_par["fdr_nbrk"]
-    fdr_thinfac <- self$fdr_grid_par["fdr_thinfac"]
-    cond_max <- self$fdr_grid_par["cond_max"]
-    cond_nbrk <- self$fdr_grid_par["cond_nbrk"]
+    if (missing(fdr_max))     fdr_max <- self$fdr_grid_par["fdr_max"]
+    if (missing(fdr_nbrk))    fdr_nbrk <- self$fdr_grid_par["fdr_nbrk"]
+    if (missing(fdr_thinfac)) fdr_thinfac <- self$fdr_grid_par["fdr_thinfac"]
+    if (missing(cond_max))    cond_max <- self$fdr_grid_par["cond_max"]
+    if (missing(cond_nbrk))   cond_nbrk <- self$fdr_grid_par["cond_nbrk"]
 
     ## Define the full breaks (with open-ended class to the right)
     fdr_breaks  <- c( seq(0, fdr_max, length = fdr_nbrk), Inf )
